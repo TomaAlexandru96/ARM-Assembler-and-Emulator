@@ -17,7 +17,7 @@ map constructMap() {
   return m;
 }
 
-int *get(map m, const char *key) {
+uint32_t *get(map m, const char *key) {
   assert(!isEmptyMap(m));
 
   mapNode *ptr = NULL;
@@ -29,7 +29,7 @@ bool isEmptyMap(map m) {
   return !m.size;
 }
 
-void put(map *m, const char *key, int value) {
+void put(map *m, const char *key, uint32_t value) {
   mapNode *ptr = NULL;
   if(lookup(*m, key, &ptr)) {
     // if found

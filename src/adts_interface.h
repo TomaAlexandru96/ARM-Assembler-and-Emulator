@@ -18,7 +18,7 @@ struct map {
 struct mapNode {
   mapNode    *next;
   const char *key;
-  int        value;
+  uint32_t    value;
 };
 
 struct vectorNode {
@@ -41,7 +41,7 @@ map constructMap();
 * Retrives the pointer to the value of the key
 * Returns NULL if nothing is found
 **/
-int *get(map m, const char *key);
+uint32_t *get(map m, const char *key);
 
 /**
 * Takes a pointer to a table, a key of type string
@@ -49,7 +49,7 @@ int *get(map m, const char *key);
 * If the key is found the value is modified to the value parameter
 * If the key is not found the pair (key, value) is added to the table
 **/
-void put(map *m, const char *key, int value);
+void put(map *m, const char *key, uint32_t value);
 
 /**
 * Takes 3 parameters: pointer to table, a key, a pointer which will be
