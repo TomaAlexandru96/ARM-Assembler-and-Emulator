@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include "adts.h"
 
 #define MAX_LINE_LENGTH 512
 
@@ -16,7 +15,6 @@ int main(int argc, char **argv) {
   // check file existance throw error if not found
   if (!input) {
     fprintf(stderr, "The file %s was not found", argv[1]);
-    fclose(input);
     return EXIT_FAILURE;
   }
 
