@@ -34,6 +34,7 @@ struct vector {
 
 // -------------------functions declarations----------------------
 // ---------------------------MAP---------------------------------
+void clearMap(map *m);
 map constructMap();
 
 /**
@@ -68,6 +69,7 @@ void printMap(map m, int n);
 bool isEmptyMap(map m);
 
 // --------------------------VECTOR--------------------------------
+void clearVector(vector *v);
 vector constructVector();
 void putFront(vector *v, const char *value);
 void putBack(vector *v, const char *value);

@@ -1,6 +1,17 @@
 #include "adts_interface.h"
 
 // ---------------------------MAP---------------------------------
+void clearMap(map *m) {
+  mapNode *ptr = m->head;
+  while(ptr) {
+    mapNode *prev = ptr;
+    ptr = ptr->next;
+    free(prev);
+  }
+  m->head = NULL;
+  m->size = 0;
+}
+
 map constructMap() {
   map m = {NULL, 0};
   return m;
@@ -55,6 +66,7 @@ bool lookup(map m, const char *key, mapNode **ptr) {
 
 void printMap(map m, int n) {
   int initial = n;
+  printf("Map: HEAD: %p, SIZE: %d\n", (void *) m.head, m.size);
   printf("%s\t%s\t%s\n", "NEXT", "KEY", "VALUE");
   while ((initial && n > 0 && m.head) || (!initial && m.head)) {
     printf("%p\t%s\t%d\n", (void *) m.head->next,
@@ -62,9 +74,16 @@ void printMap(map m, int n) {
     m.head = m.head->next;
     n--;
   }
+  puts("");
 }
 
 // --------------------------VECTOR--------------------------------
+void clearVector(vector *v) {
+  while (!isEmptyVector(*v)) {
+    getFront(v);
+  }
+}
+
 vector constructVector() {
   vector v = {NULL, NULL};
   return v;
@@ -155,10 +174,12 @@ bool isEmptyVector(vector v) {
 }
 
 void printVector(vector v) {
+  printf("Vector: FIRST: %p, LAST: %p\n", (void *) v.first, (void *) v.last);
   printf("%s\t%s\t%s\n", "PREVIOUS", "VALUE", "NEXT");
   while (v.first) {
     printf("%p\t%s\t%p\n", (void *) v.first->previous,
                         v.first->value, (void *) v.first->next);
     v.first = v.first->next;
   }
+  puts("");
 }

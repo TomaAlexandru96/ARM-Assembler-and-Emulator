@@ -3,11 +3,13 @@
 #define MAX_LINE_LENGTH 512
 
 int main(int argc, char **argv) {
-  vector x = constructVector();
+  /*vector x = constructVector();
 
   putFront(&x, "Hello1");
   putFront(&x, "Hello2");
   putFront(&x, "Hello3");
+  printVector(x);
+  clearVector(&x);
   printVector(x);
 
   map m = constructMap();
@@ -18,6 +20,8 @@ int main(int argc, char **argv) {
   put(&m, "string2", 28);
 
   printMap(m, 0);
+  clearMap(&m);
+  printMap(m, 0);*/
 
   /*
   // Check for number of arguments
