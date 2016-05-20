@@ -70,9 +70,11 @@ uint32_t firstPass(FILE *input, char lines[][MAX_LINE_LENGTH],
         putBack(&currentLabels, token);
       }
     }
+    clearVector(&tokens);
     lineNumber++;
   }
   printVector(currentLabels);
+  clearVector(&currentLabels);
   return lineNumber;
 }
 
