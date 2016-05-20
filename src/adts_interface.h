@@ -5,15 +5,29 @@
 
 // -------------------------types---------------------------------
 typedef struct mapping map;
+typedef struct nodeVector nodeVector;
+typedef struct vector vector;
 
 // -------------------------structs-------------------------------
 struct mapping {
-  map  *next;
+  map        *next;
   const char *key;
-  int  value;
+  int        value;
+};
+
+struct nodeVector {
+  nodeVector *previous;
+  const char *value;
+  nodeVector *next;
+};
+
+struct vector {
+  nodeVector *first;
+  nodeVector *last;
 };
 
 // -------------------functions declarations----------------------
+// ---------------------------MAP---------------------------------
 /**
 * Retrives the pointer to the value of the key
 * Returns NULL if nothing is found
@@ -42,3 +56,13 @@ bool lookup(map *m, const char *key, map **ptr);
 * (For debugging purposes)
 **/
 void printMap(map *m, int n);
+
+// --------------------------VECTOR--------------------------------
+void putFront(vector *v, const char *value);
+void putBack(vector *v, const char *value);
+const char *getFront(vector *v);
+const char *getBack(vector *v);
+bool isEmpty(vector v);
+const char *peekFront(vector v);
+const char *peekBack(vector v);
+void printVector(vector v);

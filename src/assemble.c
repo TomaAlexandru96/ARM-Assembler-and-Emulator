@@ -3,6 +3,7 @@
 #define MAX_LINE_LENGTH 512
 
 int main(int argc, char **argv) {
+  /*
   // Check for number of arguments
   if (argc != 3) {
     fprintf(stderr, "The function needs 2 arguments!");
@@ -26,4 +27,5 @@ int main(int argc, char **argv) {
   fclose(output);
 
   return EXIT_SUCCESS;
+  */
 }
