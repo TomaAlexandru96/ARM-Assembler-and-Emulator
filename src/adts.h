@@ -1,62 +1,82 @@
 #include "adts_interface.h"
 
 // ---------------------------MAP---------------------------------
-int *get(map *m, const char *key) {
-  return lookup(m, key, &m) ? &(m->value) : NULL;
+map constructMap() {
+  map m = {NULL, 0};
+  return m;
 }
 
-void put(map **m, const char *key, int value) {
-  map *ptr = NULL;
+int *get(map m, const char *key) {
+  assert(!isEmptyMap(m));
+
+  mapNode *ptr = NULL;
+
+  return lookup(m, key, &ptr) ? &(ptr->value) : NULL;
+}
+
+bool isEmptyMap(map m) {
+  return !m.size;
+}
+
+void put(map *m, const char *key, int value) {
+  mapNode *ptr = NULL;
   if(lookup(*m, key, &ptr)) {
     // if found
     ptr->value = value;
   } else {
     // if not found
-    map *pNewNode   = malloc(sizeof(map));
+    mapNode *pNewNode   = malloc(sizeof(mapNode));
     pNewNode->next  = NULL;
     pNewNode->key   = key;
     pNewNode->value = value;
     if (!ptr) {
       // no elemnts in mapping
-      *m = pNewNode;
+      m->head = pNewNode;
     } else {
       // make last element point to newNode
       ptr->next = pNewNode;
     }
+    m->size++;
   }
 }
 
-bool lookup(map *m, const char *key, map **ptr) {
-  *ptr = m;
-  while (m) {
-    *ptr = m;
-    if (!strcmp(m->key, key)) {
+bool lookup(map m, const char *key, mapNode **ptr) {
+  *ptr = m.head;
+  while (m.head) {
+    *ptr = m.head;
+    if (!strcmp(m.head->key, key)) {
       // if keys match
       return true;
     }
-    m = m->next;
+    m.head = m.head->next;
   }
   return false;
 }
 
-void printMap(map *m, int n) {
+void printMap(map m, int n) {
   int initial = n;
   printf("%s\t%s\t%s\n", "NEXT", "KEY", "VALUE");
-  while ((initial && n > 0 && m) || (!initial && m)) {
-    printf("%p\t%s\t%d\n", (void *) m->next, m->key, m->value);
-    m = m->next;
+  while ((initial && n > 0 && m.head) || (!initial && m.head)) {
+    printf("%p\t%s\t%d\n", (void *) m.head->next,
+                                m.head->key, m.head->value);
+    m.head = m.head->next;
     n--;
   }
 }
 
 // --------------------------VECTOR--------------------------------
+vector constructVector() {
+  vector v = {NULL, NULL};
+  return v;
+}
+
 void putFront(vector *v, const char *value) {
-  nodeVector *pNv = malloc(sizeof(nodeVector));
+  vectorNode *pNv = malloc(sizeof(vectorNode));
   pNv->previous = NULL;
   pNv->value = value;
   pNv->next = NULL;
 
-  if (isEmpty(*v)) {
+  if (isEmptyVector(*v)) {
     v->first = pNv;
     v->last  = pNv;
   } else {
@@ -67,12 +87,12 @@ void putFront(vector *v, const char *value) {
 }
 
 void putBack(vector *v, const char *value) {
-  nodeVector *pNv = malloc(sizeof(nodeVector));
+  vectorNode *pNv = malloc(sizeof(vectorNode));
   pNv->previous = NULL;
   pNv->value = value;
   pNv->next = NULL;
 
-  if (isEmpty(*v)) {
+  if (isEmptyVector(*v)) {
     v->first = pNv;
     v->last  = pNv;
   } else {
@@ -83,26 +103,26 @@ void putBack(vector *v, const char *value) {
 }
 
 const char *peekFront(vector v) {
-  assert(!isEmpty(v));
+  assert(!isEmptyVector(v));
 
   return v.first->value;
 }
 
 const char *peekBack(vector v) {
-  assert(!isEmpty(v));
+  assert(!isEmptyVector(v));
 
   return v.last->value;
 }
 
 const char *getFront(vector *v) {
-  assert(!isEmpty(*v));
+  assert(!isEmptyVector(*v));
 
   const char *ret = peekFront(*v);
 
   // remove first node and free memory
-  nodeVector *removedNode = v->first;
+  vectorNode *removedNode = v->first;
   v->first = removedNode->next;
-  if (!isEmpty(*v)) {
+  if (!isEmptyVector(*v)) {
     v->first->previous = NULL;
   } else {
     v->last = NULL;
@@ -113,14 +133,14 @@ const char *getFront(vector *v) {
 }
 
 const char *getBack(vector *v) {
-  assert(!isEmpty(*v));
+  assert(!isEmptyVector(*v));
 
   const char *ret = peekFront(*v);
 
   // remove last node and free memory
-  nodeVector *removedNode = v->last;
+  vectorNode *removedNode = v->last;
   v->last = removedNode->previous;
-  if (!isEmpty(*v)) {
+  if (!isEmptyVector(*v)) {
     v->last->next = NULL;
   } else {
     v->first = NULL;
@@ -130,7 +150,7 @@ const char *getBack(vector *v) {
   return ret;
 }
 
-bool isEmpty(vector v) {
+bool isEmptyVector(vector v) {
   return !v.first || !v.last;
 }
 
