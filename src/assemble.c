@@ -89,7 +89,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     vector tokens = tokenise(buffer, DELIMITERS);
-
+    printVector(tokens);
     // check for all tokens see if there are labels
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
@@ -133,9 +133,9 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
   int i = 0;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
-    printf("Original: %s", buffer);
+    // printf("Original: %s", buffer);
     replaceString(buffer, labelMapping);
-    printf("Replaced: %s", buffer);
+    //printf("Replaced: %s", buffer);
     i++;
   }
 }
@@ -173,6 +173,8 @@ vector tokenise(char *start, const char *delimiters) {
       tokenSize = 0;
     }
   }
+
+  return tokens;
 }
 
 char *replaceString(char *original, map m) {
@@ -188,7 +190,6 @@ char *replaceString(char *original, map m) {
     }
     putBack(&tokens, "token");
   }
-  printVector(tokens);
   // concatenate all tokens together
   int totalSize = getTotalLengthSize(tokens);
   char *replaced = malloc( + 1);
@@ -199,7 +200,6 @@ char *replaceString(char *original, map m) {
     i = strlen(token);
   }
   replaced[totalSize] = '\0';
-  printf("%s\n", replaced);
   return replaced;
 }
 
