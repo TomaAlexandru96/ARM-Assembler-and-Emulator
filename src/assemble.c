@@ -4,7 +4,10 @@
 #define DELIMITERS " ,\n"
 #define MEMORY_SIZE 4
 
-uint32_t firstPass(FILE *input, map *labelMapping, char *errorMessage);
+uint32_t firstPass(FILE *input, map *labelMapping,
+              char *errorMessage, uint32_t *instructionsNumber);
+void secondPass(uint32_t linesNumber, char lines[][MAX_LINE_LENGTH],
+              uint32_t instructions[], char *errorMessage, FILE *input);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
 bool isLabel(char *token);
@@ -24,6 +27,7 @@ int main(int argc, char **argv) {
   }
 
   char errorMessage[] = "";
+  uint32_t instructionsNumber;
   map labelMapping = constructMap();
   /**
   * fill the mappings:
@@ -35,11 +39,17 @@ int main(int argc, char **argv) {
   * memmory addresses (fills labelMapping)
   **/
   fillAll();
-  uint32_t linesNumber = firstPass(input, &labelMapping, errorMessage);
-  //char lines[linesNumber][MAX_LINE_LENGTH];
-  printMap(labelMapping, 0);
+  uint32_t linesNumber = firstPass(input, &labelMapping,
+                errorMessage, &instructionsNumber);
+  /**
+  * Make second pass now and replace all labels with their mapping
+  * also decode all instructions and trow errors if any
+  **/
+  char lines[linesNumber][MAX_LINE_LENGTH];
+  uint32_t instructions[instructionsNumber];
+  rewind(input); // reset file pointer to the beginning of the file
+  secondPass(linesNumber, lines, instructions, errorMessage, input);
 
-  printf("%d\n", linesNumber);
   // if we have compile erros stop and print errors
   if (errorMessage[0] != '\0') {
     fprintf(stderr, "%s\n", errorMessage);
@@ -47,20 +57,25 @@ int main(int argc, char **argv) {
   }
 
   FILE *output = fopen(argv[2], "wb");
-
-  //fwrite(&x, sizeof(int), 1, output);
-
+  fwrite(instructions, sizeof(uint32_t), instructionsNumber, output);
   fclose(input);
   fclose(output);
+
+  // DEBUG ZONE
+  printStringArray(linesNumber, lines);
+  // DEBUG ZONE
 
   return EXIT_SUCCESS;
 }
 
-uint32_t firstPass(FILE *input, map *labelMapping, char *errorMessage) {
+uint32_t firstPass(FILE *input, map *labelMapping,
+                  char *errorMessage, uint32_t *instructionsNumber) {
   uint32_t lineNumber = 1;
   uint32_t currentMemoryLocation = 0;
   vector currentLabels = constructVector();
   char buffer[MAX_LINE_LENGTH];
+
+  *instructionsNumber = 0;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     vector tokens = tokenise(buffer, DELIMITERS);
@@ -93,6 +108,7 @@ uint32_t firstPass(FILE *input, map *labelMapping, char *errorMessage) {
           put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
         }
         currentMemoryLocation += MEMORY_SIZE;
+        (*instructionsNumber)++;
       }
     }
     clearVector(&tokens);
@@ -100,6 +116,15 @@ uint32_t firstPass(FILE *input, map *labelMapping, char *errorMessage) {
   }
   clearVector(&currentLabels);
   return lineNumber - 1;
+}
+
+void secondPass(uint32_t linesNumber, char lines[][MAX_LINE_LENGTH],
+              uint32_t instructions[], char *errorMessage, FILE *input) {
+  int i = 0;
+  while(fgets(lines[i], MAX_LINE_LENGTH, input)) {
+    
+    i++;
+  }
 }
 
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
