@@ -6,8 +6,8 @@
 // -------------------------TYPES---------------------------------
 typedef struct map map;
 typedef struct mapNode mapNode;
-typedef struct vectorNode vectorNode;
 typedef struct vector vector;
+typedef struct vectorNode vectorNode;
 
 // -------------------------STRUCTS-------------------------------
 struct map {
@@ -30,6 +30,7 @@ struct vectorNode {
 struct vector {
   vectorNode *first;
   vectorNode *last;
+  int size;
 };
 
 // -------------------FUNCTION DECLARATIONS-----------------------
@@ -64,7 +65,7 @@ bool lookup(map m, const char *key, mapNode **ptr);
 * Print n struct items if 0 print all elements
 * (For debugging purposes)
 **/
-void printMap(map m, int n);
+void printMap(map m);
 
 bool isEmptyMap(map m);
 
@@ -80,3 +81,4 @@ const char *peekFront(vector v);
 const char *peekBack(vector v);
 void printVector(vector v);
 bool contains(vector v, const char *value);
+int getTotalLengthSize(vector v);

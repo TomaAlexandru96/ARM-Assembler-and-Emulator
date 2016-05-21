@@ -6,11 +6,21 @@
 
 uint32_t firstPass(FILE *input, map *labelMapping,
               char *errorMessage, uint32_t *instructionsNumber);
-void secondPass(uint32_t linesNumber, char lines[][MAX_LINE_LENGTH],
-              uint32_t instructions[], char *errorMessage, FILE *input);
+void secondPass(uint32_t linesNumber, uint32_t instructions[],
+              char *errorMessage, FILE *input, map labelMapping);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
 bool isLabel(char *token);
+char *replaceString(char *original, map m);
+/**
+* Converts unsigned int to string
+**/
+char *uintToString(uint32_t num);
+uint32_t decode();
+uint32_t decodeDataProcessing();
+uint32_t decodeMultiply();
+uint32_t decodeSingleDataTransfer();
+uint32_t decodeBranch();
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -45,10 +55,10 @@ int main(int argc, char **argv) {
   * Make second pass now and replace all labels with their mapping
   * also decode all instructions and trow errors if any
   **/
-  char lines[linesNumber][MAX_LINE_LENGTH];
   uint32_t instructions[instructionsNumber];
   rewind(input); // reset file pointer to the beginning of the file
-  secondPass(linesNumber, lines, instructions, errorMessage, input);
+  secondPass(linesNumber, instructions,
+                  errorMessage, input, labelMapping);
 
   // if we have compile erros stop and print errors
   if (errorMessage[0] != '\0') {
@@ -62,7 +72,7 @@ int main(int argc, char **argv) {
   fclose(output);
 
   // DEBUG ZONE
-  printStringArray(linesNumber, lines);
+  printMap(labelMapping);
   // DEBUG ZONE
 
   return EXIT_SUCCESS;
@@ -86,7 +96,6 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     while (!isEmptyVector(tokens)) {
       char *token = (char *) getFront(&tokens);
       if (isLabel(token)) {
-        token[strlen(token) - 1] = '\0';
         if (get(*labelMapping, token) || contains(currentLabels, token)) {
           // if this label already exists in the mapping this means
           // that we have multiple definitions of the same label
@@ -118,11 +127,15 @@ uint32_t firstPass(FILE *input, map *labelMapping,
   return lineNumber - 1;
 }
 
-void secondPass(uint32_t linesNumber, char lines[][MAX_LINE_LENGTH],
-              uint32_t instructions[], char *errorMessage, FILE *input) {
+void secondPass(uint32_t linesNumber, uint32_t instructions[],
+              char *errorMessage, FILE *input, map labelMapping) {
+  char buffer[MAX_LINE_LENGTH];
   int i = 0;
-  while(fgets(lines[i], MAX_LINE_LENGTH, input)) {
-    
+
+  while(fgets(buffer, MAX_LINE_LENGTH, input)) {
+    printf("Original: %s", buffer);
+    replaceString(buffer, labelMapping);
+    printf("Replaced: %s", buffer);
     i++;
   }
 }
@@ -149,14 +162,66 @@ vector tokenise(char *start, const char *delimiters) {
       tokenSize--;
       // make sapce for token string
       char *token = malloc((tokenSize + 1) * sizeof(char));
+      // make space for delimiter
+      char *delim = malloc(2 * sizeof(char));
       strncpy(token, start + i - tokenSize, tokenSize);
+      strncpy(delim, start + i, 1);
       token[tokenSize] = '\0';
+      delim[1] = '\0';
       putBack(&tokens, token);
+      putBack(&tokens, delim);
       tokenSize = 0;
     }
   }
+}
 
-  return tokens;
+char *replaceString(char *original, map m) {
+  // char *replaced;
+  vector tokens = tokenise(original, DELIMITERS);
+  // cycle through the tokens and repalce all occorunces of m keys with
+  // their value
+  for (int i = 0; i < tokens.size; i++) {
+    const char *token = getFront(&tokens);
+    uint32_t *pSearch = get(m, token);
+    if (pSearch) {
+      token = uintToString(*pSearch);
+    }
+    putBack(&tokens, "token");
+  }
+  printVector(tokens);
+  // concatenate all tokens together
+  int totalSize = getTotalLengthSize(tokens);
+  char *replaced = malloc( + 1);
+  int i = 0;
+  while (!isEmptyVector(tokens)) {
+    const char *token = getFront(&tokens);
+    strcpy(replaced + i, token);
+    i = strlen(token);
+  }
+  replaced[totalSize] = '\0';
+  printf("%s\n", replaced);
+  return replaced;
+}
+
+char *uintToString(uint32_t num) {
+  int n = num;
+  int length = 0;
+
+  do {
+    length++;
+    n /= 10;
+  } while (n != 0);
+
+  char *ret = malloc(length + 1);
+
+  for (int i = 0; i < length; i++) {
+    ret[length - i - 1] = num % 10 + '0';
+    num /= 10;
+  }
+
+  ret[length] = '\0';
+
+  return ret;
 }
 
 // ---------------------ADT TESTS------------------------------

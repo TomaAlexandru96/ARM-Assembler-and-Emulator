@@ -62,15 +62,13 @@ bool lookup(map m, const char *key, mapNode **ptr) {
   return false;
 }
 
-void printMap(map m, int n) {
-  int initial = n;
+void printMap(map m) {
   printf("Map: HEAD: %p, SIZE: %d\n", (void *) m.head, m.size);
   printf("%s\t%s\t%s\n", "NEXT", "KEY", "VALUE");
-  while ((initial && n > 0 && m.head) || (!initial && m.head)) {
+  while (m.head) {
     printf("%p\t%s\t%d\n", (void *) m.head->next,
                                 m.head->key, m.head->value);
     m.head = m.head->next;
-    n--;
   }
   puts("");
 }
@@ -80,10 +78,11 @@ void clearVector(vector *v) {
   while (!isEmptyVector(*v)) {
     getFront(v);
   }
+  v->size = 0;
 }
 
 vector constructVector(void) {
-  vector v = {NULL, NULL};
+  vector v = {NULL, NULL, 0};
   return v;
 }
 
@@ -101,6 +100,7 @@ void putFront(vector *v, const char *value) {
     v->first->previous = pNv;
     v->first = pNv;
   }
+  (v->size)++;
 }
 
 void putBack(vector *v, const char *value) {
@@ -117,6 +117,7 @@ void putBack(vector *v, const char *value) {
     v->last->next = pNv;
     v->last = pNv;
   }
+  (v->size)++;
 }
 
 const char *peekFront(vector v) {
@@ -145,6 +146,7 @@ const char *getFront(vector *v) {
     v->last = NULL;
   }
   free(removedNode);
+  (v->size)--;
 
   return ret;
 }
@@ -162,6 +164,7 @@ const char *getBack(vector *v) {
     v->first = NULL;
   }
   free(removedNode);
+  (v->size)--;
 
   return ret;
 }
@@ -171,7 +174,8 @@ bool isEmptyVector(vector v) {
 }
 
 void printVector(vector v) {
-  printf("Vector: FIRST: %p, LAST: %p\n", (void *) v.first, (void *) v.last);
+  printf("Vector: FIRST: %p, LAST: %p, SIZE: %d\n", (void *) v.first,
+                  (void *) v.last, v.size);
   printf("%s\t%s\t%s\n", "PREVIOUS", "VALUE", "NEXT");
   while (v.first) {
     printf("%p\t%s\t%p\n", (void *) v.first->previous,
@@ -192,4 +196,16 @@ bool contains(vector v, const char *value) {
   }
 
   return false;
+}
+
+int getTotalLengthSize(vector v) {
+  vectorNode *currentNode = v.first;
+  int total = 0;
+
+  while (currentNode) {
+    total += strlen(currentNode->value);
+    currentNode = currentNode->next;
+  }
+
+  return total;
 }
