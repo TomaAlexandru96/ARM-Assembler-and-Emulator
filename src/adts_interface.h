@@ -3,13 +3,13 @@
 #include <stdbool.h>
 #include "headers.h"
 
-// -------------------------types---------------------------------
+// -------------------------TYPES---------------------------------
 typedef struct map map;
 typedef struct mapNode mapNode;
 typedef struct vectorNode vectorNode;
 typedef struct vector vector;
 
-// -------------------------structs-------------------------------
+// -------------------------STRUCTS-------------------------------
 struct map {
   mapNode *head;
   int     size;
@@ -32,10 +32,10 @@ struct vector {
   vectorNode *last;
 };
 
-// -------------------functions declarations----------------------
+// -------------------FUNCTION DECLARATIONS-----------------------
 // ---------------------------MAP---------------------------------
 void clearMap(map *m);
-map constructMap();
+map constructMap(void);
 
 /**
 * Retrives the pointer to the value of the key
@@ -70,7 +70,7 @@ bool isEmptyMap(map m);
 
 // --------------------------VECTOR--------------------------------
 void clearVector(vector *v);
-vector constructVector();
+vector constructVector(void);
 void putFront(vector *v, const char *value);
 void putBack(vector *v, const char *value);
 const char *getFront(vector *v);
@@ -79,3 +79,4 @@ bool isEmptyVector(vector v);
 const char *peekFront(vector v);
 const char *peekBack(vector v);
 void printVector(vector v);
+bool contains(vector v, const char *value);

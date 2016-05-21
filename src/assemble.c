@@ -1,15 +1,10 @@
-#include "adts.h"
+#include "mappings.h"
 
 #define MAX_LINE_LENGTH 512
 #define DELIMITERS " ,\n"
+#define MEMORY_SIZE 4
 
-/**
-* Makes the first pass in the code and fills array lines with the lines
-* from the input file also checkes for errors
-* Returns the number of lines
-**/
-uint32_t firstPass(FILE *input, char lines[][MAX_LINE_LENGTH],
-                      char *errorMessage, map *labelMapping);
+uint32_t firstPass(FILE *input, map *labelMapping, char *errorMessage);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
 bool isLabel(char *token);
@@ -28,14 +23,23 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  char *errorMessage = "";
-  char lines[5000][MAX_LINE_LENGTH];
+  char errorMessage[] = "";
   map labelMapping = constructMap();
-  uint32_t linesNumber = firstPass(input, lines, errorMessage, &labelMapping);
-
+  /**
+  * fill the mappings:
+  * map DATA_OPCODE;
+  * map ALL_INSTRUCTIONS;
+  * map CONDITIONS;
+  * And after:
+  * make first pass thorugh code and map all labels with their corresponidng
+  * memmory addresses (fills labelMapping)
+  **/
+  fillAll();
+  uint32_t linesNumber = firstPass(input, &labelMapping, errorMessage);
+  //char lines[linesNumber][MAX_LINE_LENGTH];
   printMap(labelMapping, 0);
-  printStringArray(linesNumber, lines);
 
+  printf("%d\n", linesNumber);
   // if we have compile erros stop and print errors
   if (errorMessage[0] != '\0') {
     fprintf(stderr, "%s\n", errorMessage);
@@ -52,30 +56,50 @@ int main(int argc, char **argv) {
   return EXIT_SUCCESS;
 }
 
-uint32_t firstPass(FILE *input, char lines[][MAX_LINE_LENGTH],
-              char *errorMessage, map *labelMapping) {
+uint32_t firstPass(FILE *input, map *labelMapping, char *errorMessage) {
   uint32_t lineNumber = 1;
-  //uint32_t currentMemory = 0;
+  uint32_t currentMemoryLocation = 0;
   vector currentLabels = constructVector();
+  char buffer[MAX_LINE_LENGTH];
 
-  while(fgets(lines[lineNumber - 1], MAX_LINE_LENGTH, input)) {
-    vector tokens = tokenise(lines[lineNumber - 1], DELIMITERS);
+  while(fgets(buffer, MAX_LINE_LENGTH, input)) {
+    vector tokens = tokenise(buffer, DELIMITERS);
 
-    // check for all tokens see if there are in labels
+    // check for all tokens see if there are labels
     // if there are labels add all of them to a vector list and
-    // map all labels with the memorry address of the nex instruction
+    // map all labels with the memorry address of the next instruction
     while (!isEmptyVector(tokens)) {
       char *token = (char *) getFront(&tokens);
       if (isLabel(token)) {
+        token[strlen(token) - 1] = '\0';
+        if (get(*labelMapping, token) || contains(currentLabels, token)) {
+          // if this label already exists in the mapping this means
+          // that we have multiple definitions of the same label
+          // therefore throw an error message
+          char error[] = "Multiple definitions of the same label: ";
+          strcat(error, token);
+          strcat(error, "\n");
+          // strcat(errorMessage, error);
+        }
         putBack(&currentLabels, token);
+      }
+      if (get(ALL_INSTRUCTIONS, token)) {
+        // if we found a valid instruction
+        // map all current unmapped labels
+        // to this current memmory location
+        // and advance memory
+        while (!isEmptyVector(currentLabels)) {
+          // map all labels to current memorry location
+          put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
+        }
+        currentMemoryLocation += MEMORY_SIZE;
       }
     }
     clearVector(&tokens);
     lineNumber++;
   }
-  printVector(currentLabels);
   clearVector(&currentLabels);
-  return lineNumber;
+  return lineNumber - 1;
 }
 
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {

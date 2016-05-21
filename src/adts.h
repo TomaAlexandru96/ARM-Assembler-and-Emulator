@@ -12,14 +12,12 @@ void clearMap(map *m) {
   m->size = 0;
 }
 
-map constructMap() {
+map constructMap(void) {
   map m = {NULL, 0};
   return m;
 }
 
 uint32_t *get(map m, const char *key) {
-  assert(!isEmptyMap(m));
-
   mapNode *ptr = NULL;
 
   return lookup(m, key, &ptr) ? &(ptr->value) : NULL;
@@ -84,7 +82,7 @@ void clearVector(vector *v) {
   }
 }
 
-vector constructVector() {
+vector constructVector(void) {
   vector v = {NULL, NULL};
   return v;
 }
@@ -155,7 +153,6 @@ const char *getBack(vector *v) {
   assert(!isEmptyVector(*v));
 
   const char *ret = peekFront(*v);
-
   // remove last node and free memory
   vectorNode *removedNode = v->last;
   v->last = removedNode->previous;
@@ -182,4 +179,17 @@ void printVector(vector v) {
     v.first = v.first->next;
   }
   puts("");
+}
+
+bool contains(vector v, const char *value) {
+  vectorNode *current = v.first;
+  while (current) {
+    if (!strcmp(current->value, value)) {
+      // vector contains the item
+      return true;
+    }
+    current = current->next;
+  }
+
+  return false;
 }
