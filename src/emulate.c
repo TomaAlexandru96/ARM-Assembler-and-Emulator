@@ -1,6 +1,7 @@
 #include "headers.h"
 #include <limits.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #define MEM_SIZE_BYTES 16384 // 2 ^ 14 instruction addresses
 #define NUMBER_REGS 17
@@ -8,6 +9,7 @@
 #define INDEX_CPSR 16
 #define INDEX_SP 13
 #define INDEX_LR 14
+#define INT_BITS 32
 /*-------------TypeDefinitions------------------*/
 typedef struct proc_state proc_state_t;
 
@@ -34,11 +36,11 @@ void memoryLoader(FILE *file, proc_state_t *pState);
 
 void printMemory(int memory[]);
 
+void printProcessorState(proc_state_t *pState);
+
 void decodeFetched(int instruction, proc_state_t *pState);
 
 void procCycle(proc_state_t *pState);
-
-int extractCond(int instruction);
 
 int extractIDbits(int instruction);
 
@@ -51,6 +53,29 @@ void executeDataProcessing(int instruction, proc_state_t *pState);
 void executeMultiply(int instruction, proc_state_t *pState);
 
 void executeBranch(int instruction, proc_state_t *pState);
+
+uint8_t getCond(int instruction);
+
+bool shouldExecute(int instruction, proc_state_t *pState);
+
+int getSBit(int instruction);
+
+int getIBit(int instruction);
+
+int getRn(int instruction);
+
+int getRdest(int instruction);
+
+int getRotate(int instruction);
+
+int getImm(int instruction);
+
+int getShift(int instruction);
+
+int getRm(int instruction);
+
+int rightRotate(int value, int numberOfTimes);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -64,7 +89,8 @@ int main(int argc, char **argv) {
   printMemory(pState.memory);
   printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
-printf("%s\n", "I finished procCycle");
+  printf("%s\n", "I finished procCycle");
+
   return EXIT_SUCCESS;
 }
 
@@ -109,6 +135,7 @@ void procCycle(proc_state_t *pState) {
   printf("%s\n", "Before loop");
   printProcessorState(pState);
   while(pipeline.fetched) {
+     printProcessorState(pState);
      decodeFetched(pipeline.fetched, pState);
      pipeline.decoded = pipeline.fetched;
      pState->PC += 4;
@@ -117,43 +144,213 @@ void procCycle(proc_state_t *pState) {
 
 }
 
+//--------------Execute DataProcessingI----------------------------------------
+void executeDataProcessing(int instruction, proc_state_t *pState) {
+   int S = getSBit(instruction);
+   int I = getIBit(instruction);
+   int Rn = getRn(instruction);
+   int Rdest = getRdest(instruction);
+   int opcode = getOpcode(instruction);
+   bool rezultAllZeros = false;
+
+   if(I) {
+     int rotate = getRotate(instruction);
+     int immediate = getImm(instruction);
+     rotate =  2 * rotate;
+     int rotatedImmediate = rightRotate(immediate, rotate);
+     switch(opcode) {
+       case 0x0: 
+                break;
+       case 0x1:
+                break;
+       case 0x2:
+                break;
+       case 0x3:
+                break;
+       case 0x4:
+                break;
+       case 0x8:
+                break;
+       case 0x9:
+                break;
+       case 0xA:
+                break;
+       case 0xC:
+                break;
+       case 0xD:
+                break;
+     }
+   } else {
+     int shift = getShift(instruction);
+     int Rm = getRm(instruction);
+   }
+
+   if(S) {
+    /************
+     * Set C bit*
+     ************/
+     //barrel shifter ~ set C to carry out from any shift operation;
+
+     //ALU ~ C = Cout of bit 31;
+
+    /************
+     * Set Z bit*
+     ************/
+
+    /************
+     * Set N bit*
+     ************/
+   }
+
+
+}
+
+int rightRotate(int value, int numberOfTimes) {
+  return (value >> numberOfTimes) | (value << (INT_BITS - numberOfTimes));
+}
+
+int getOpcode(int instruction) {
+  int mask21to24 = 0x1E00000;
+  return (instruction & mask21to24) >> 21;
+}
+
+int getRotate(int instruction) {
+   int mask8To11 = 0xF00;
+   return (instruction & mask8To11) >> 8;
+}
+
+int getImm(int instruction) {
+  int mask0To7 = 0xFF;
+  return instruction & mask0To7;
+}
+
+int getShift(int instruction) {
+  int mask4To11 = 0xFF0;
+  return (instruction & mask4To11) >> 4;
+}
+
+int getRm(int instruction) {
+  int mask0to3 = 0xF;
+  return instruction & mask0to3;
+}
+
+
+int getSBit(int instruction) {
+   int maskS20 = 0x100000;
+   instruction = instruction & maskS20;
+   instruction = instruction >> 20;
+   return instruction;
+}
+
+int getIBit(int instruction) {
+  int maskI25 = 0x2000000;
+  instruction = instruction & maskI25;
+  instruction = instruction >> 25;
+  return instruction;
+}
+
+int getRn(int instruction) {
+   int maskRn = 0xF0000;
+   instruction = instruction & maskRn;
+   instruction = instruction >> 16;
+   return instruction;
+}
+
+int getRdest(int instruction) {
+   int maskRdest = 0xF000;
+   instruction = instruction & maskRdest;
+   instruction = instruction >> 12;
+   return instruction;
+}
+//------------------------------------------------------------------------------
+
+//--------------Execute SDataTransferI------------------------------------------
 void executeSDataTransfer(int instruction, proc_state_t *pState) {
 
 }
 
-void executeDataProcessing(int instruction, proc_state_t *pState) {
+//------------------------------------------------------------------------------
 
-}
-
+//--------------Execute MultiplyI-----------------------------------------------
 void executeMultiply(int instruction, proc_state_t *pState) {
 
 }
 
+//------------------------------------------------------------------------------
+
+//--------------Execute Branch--------------------------------------------------
 void executeBranch(int instruction, proc_state_t *pState) {
 
 }
 
+//------------------------------------------------------------------------------
+
+//--------------General Helper Functions Execution------------------------------
+bool shouldExecute(int instruction, proc_state_t *pState) {
+   uint8_t cond = getCond(instruction);
+   int N = pState->NEG;
+   int Z = pState->ZER;
+   int V = pState->OVF;
+   switch(cond) {
+     case 0:
+             return Z == 1;
+     case 1:
+             return Z == 0;
+     case 10:
+             return N == V;
+     case 11:
+             return N != V;
+     case 12:
+             return ((Z == 0) && (N == V));
+     case 13:
+             return ((Z == 1) || (N != V));
+     case 14:
+             return true;
+     default:
+             return false;
+   }
+}
+
+uint8_t getCond(int instruction) {
+  int mask = 0xF0000000;
+  uint8_t cond;
+  uint8_t maskLS4 = 0xF;
+  instruction = instruction & mask;
+  instruction = instruction >> 28;
+  cond = (uint8_t) (instruction & maskLS4);
+  return cond;
+}
+
+//-----------------------------------------------------------------------------
 void decodeFetched(int instruction, proc_state_t *pState) {
   printf("I am decoding %x\n", instruction);
    int idBits = extractIDbits(instruction);
    if(idBits == 1) {
-     //check if Cond satisfied before executing TODO
-     printf("%s\n", "This is data transfer instruction");
-      executeSDataTransfer(instruction, pState);
+     //check if Cond satisfied before executing
+       printf("%s\n", "This is data transfer instruction");
+       if(shouldExecute(instruction, pState)) {
+        executeSDataTransfer(instruction, pState);
+       }
    } else if(idBits == 2) {
-     //check if Cond satisfied before executing TODO
-     printf("%s\n", "This is branch instruction");
-      executeBranch(instruction, pState);
+     //check if Cond satisfied before executing
+      printf("%s\n", "This is branch instruction");
+      if(shouldExecute(instruction, pState)) {
+        executeBranch(instruction, pState);
+      }
    } else if(!idBits) {
       //Choose between MultiplyI and DataProcessingI
        if(isMult(instruction)) {
          printf("%s\n", "This is multiply instruction");
-         executeMultiply(instruction, pState);
+         if(shouldExecute(instruction, pState)) {
+           executeMultiply(instruction, pState);
+         }
        } else {
+         //Then check if Cond satisfied before executing
          printf("%s\n", "This is data processing instruction");
-         executeDataProcessing(instruction, pState);
+         if(shouldExecute(instruction, pState)) {
+          executeDataProcessing(instruction, pState);
+         }
        }
-      //Then check if Cond satisfied before executing
    } else {
      printf("%s\n", "Should not get here");
      fprintf(stderr, "%s\n", "Invalid instruction executing.");
@@ -177,12 +374,6 @@ bool isMult(int instruction) {
   }
 }
 
-int extractCond(int instruction) {
-  int mask = 0x80000000;
-  instruction = instruction & mask;
-  //call by value, so the decoded instruction will not change
-  return instruction >> 29;
-}
 
 int extractIDbits(int instruction) {
   int mask = 0xC000000;
