@@ -72,7 +72,13 @@ int main(int argc, char **argv) {
   fclose(output);
 
   // DEBUG ZONE
-  printMap(labelMapping);
+  // printMap(labelMapping);
+  map m = constructMap();
+  put(&m, "Hello", 20);
+  char text[] = "Replace me Hello with 20. Soem more text";
+  char *replaced = replaceString(text, m);
+  printf("Original: %s\n", text);
+  printf("Replaced: %s\n", replaced);
   // DEBUG ZONE
 
   return EXIT_SUCCESS;
@@ -89,7 +95,6 @@ uint32_t firstPass(FILE *input, map *labelMapping,
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     vector tokens = tokenise(buffer, DELIMITERS);
-    printVector(tokens);
     // check for all tokens see if there are labels
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
@@ -134,7 +139,7 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     // printf("Original: %s", buffer);
-    replaceString(buffer, labelMapping);
+    // replaceString(buffer, labelMapping);
     //printf("Replaced: %s", buffer);
     i++;
   }
@@ -152,9 +157,10 @@ bool isLabel(char *token) {
 
 vector tokenise(char *start, const char *delimiters) {
   int tokenSize = 0;
+  int i;
   vector tokens = constructVector();
 
-  for (int i = 0; start[i] != '\0'; i++) {
+  for (i = 0; start[i] != '\0'; i++) {
     tokenSize++;
 
     if (strchr(delimiters, start[i])) {
@@ -174,6 +180,14 @@ vector tokenise(char *start, const char *delimiters) {
     }
   }
 
+  if (tokenSize) {
+    // we still have one token left
+    char *token = malloc((tokenSize + 1) * sizeof(char));
+    strncpy(token, start + i - tokenSize, tokenSize);
+    token[tokenSize] = '\0';
+    putBack(&tokens, token);
+  }
+
   return tokens;
 }
 
@@ -188,11 +202,14 @@ char *replaceString(char *original, map m) {
     if (pSearch) {
       token = uintToString(*pSearch);
     }
-    putBack(&tokens, "token");
+    putBack(&tokens, token);
   }
+
+  printVector(tokens);
+
   // concatenate all tokens together
   int totalSize = getTotalLengthSize(tokens);
-  char *replaced = malloc( + 1);
+  char *replaced = malloc(totalSize + 1);
   int i = 0;
   while (!isEmptyVector(tokens)) {
     const char *token = getFront(&tokens);
