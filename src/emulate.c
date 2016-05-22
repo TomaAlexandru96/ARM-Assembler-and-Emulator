@@ -2,7 +2,7 @@
 #include <limits.h>
 #include <stdbool.h>
 
-#define MEM_SIZE_BYTES 65536
+#define MEM_SIZE_BYTES 16384 // 2 ^ 14 instruction addresses
 #define NUMBER_REGS 17
 #define INDEX_PC 15
 #define INDEX_CPSR 16
@@ -34,7 +34,7 @@ void memoryLoader(FILE *file, proc_state_t *pState);
 
 void printMemory(int memory[]);
 
-void decodeFetched(int instruction);
+void decodeFetched(int instruction, proc_state_t *pState);
 
 void procCycle(proc_state_t *pState);
 
@@ -43,6 +43,14 @@ int extractCond(int instruction);
 int extractIDbits(int instruction);
 
 bool isMult(int instruction);
+
+void executeSDataTransfer(int instruction, proc_state_t *pState);
+
+void executeDataProcessing(int instruction, proc_state_t *pState);
+
+void executeMultiply(int instruction, proc_state_t *pState);
+
+void executeBranch(int instruction, proc_state_t *pState);
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -101,7 +109,7 @@ void procCycle(proc_state_t *pState) {
   printf("%s\n", "Before loop");
   printProcessorState(pState);
   while(pipeline.fetched) {
-     decodeFetched(pipeline.fetched);
+     decodeFetched(pipeline.fetched, pState);
      pipeline.decoded = pipeline.fetched;
      pState->PC += 4;
      pipeline.fetched = pState->memory[pState->PC / 4];
@@ -109,26 +117,41 @@ void procCycle(proc_state_t *pState) {
 
 }
 
+void executeSDataTransfer(int instruction, proc_state_t *pState) {
 
-void decodeFetched(int instruction) {
+}
+
+void executeDataProcessing(int instruction, proc_state_t *pState) {
+
+}
+
+void executeMultiply(int instruction, proc_state_t *pState) {
+
+}
+
+void executeBranch(int instruction, proc_state_t *pState) {
+
+}
+
+void decodeFetched(int instruction, proc_state_t *pState) {
   printf("I am decoding %x\n", instruction);
    int idBits = extractIDbits(instruction);
    if(idBits == 1) {
      //check if Cond satisfied before executing TODO
      printf("%s\n", "This is data transfer instruction");
-    //  executeSDataTransfer(instruction);  TODO
+      executeSDataTransfer(instruction, pState);
    } else if(idBits == 2) {
      //check if Cond satisfied before executing TODO
      printf("%s\n", "This is branch instruction");
-    //  executeBranch(instruction); TODO
+      executeBranch(instruction, pState);
    } else if(!idBits) {
       //Choose between MultiplyI and DataProcessingI
        if(isMult(instruction)) {
          printf("%s\n", "This is multiply instruction");
-    //  TODO   executeMultiply(instruction);
+         executeMultiply(instruction, pState);
        } else {
          printf("%s\n", "This is data processing instruction");
-      // TODO  executeDataProcessing(instruction);
+         executeDataProcessing(instruction, pState);
        }
       //Then check if Cond satisfied before executing
    } else {
