@@ -30,7 +30,7 @@ struct pipeline {
 };
 
 /*------------------Prototypes-------------------*/
-void memoryLoader(FILE *file, proc_state_t pState);
+void memoryLoader(FILE *file, proc_state_t *pState);
 
 void printMemory(int memory[]);
 
@@ -51,7 +51,9 @@ int main(int argc, char **argv) {
   }
   FILE *file = fopen(argv[1], "rb");
   proc_state_t pState;
-  memoryLoader(file, pState);
+  memoryLoader(file, &pState);
+  printf("%s\n", "State of the memory before procCycle");
+  printMemory(pState.memory);
   printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
 printf("%s\n", "I finished procCycle");
@@ -93,16 +95,13 @@ void printPipeline(pipeline_t *pipeline) {
 void procCycle(proc_state_t *pState) {
   printf("%s\n", "I am in procCycle");
   pipeline_t pipeline;
-  //int firstInstruction = (pState->memory)[0];
-  //printf("First instruction: %x\n", firstInstruction);
-  printMemory(pState->memory);
   pipeline.fetched = (pState->memory)[pState->PC];
   pipeline.decoded = -1;
   printPipeline(&pipeline);
-   printf("%s\n", "Before loop");
-   printProcessorState(pState);
+  printf("%s\n", "Before loop");
+  printProcessorState(pState);
   while(pipeline.fetched) {
-     decodeFetched(pipeline.decoded);
+     decodeFetched(pipeline.fetched);
      pipeline.decoded = pipeline.fetched;
      pState->PC += 4;
      pipeline.fetched = pState->memory[pState->PC / 4];
@@ -170,17 +169,17 @@ int extractIDbits(int instruction) {
 }
 
 
-void memoryLoader(FILE *file, proc_state_t pState) {
+void memoryLoader(FILE *file, proc_state_t *pState) {
   //Pointers are passed to functions by value(they are addresses)
   //So, passing *file makes a copy of the original pointer
   if(!file) {
     fprintf(stderr, "%s\n", "File not found");
   }
-  fread(pState.memory, sizeof(uint32_t), MEM_SIZE_BYTES, file);
+  fread(pState->memory, sizeof(uint32_t), MEM_SIZE_BYTES, file);
   fclose(file);
   //load every instruction in binary file into memory
   //Instructions stored in Big Endian, ready to be decoded
-  printMemory(pState.memory);
+  printMemory(pState->memory);
 
 }
 
