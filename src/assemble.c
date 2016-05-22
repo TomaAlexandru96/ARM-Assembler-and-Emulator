@@ -11,7 +11,9 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
 bool isLabel(char *token);
-char *replaceString(char *original, map m);
+char *replaceStringMap(char *original, map m);
+char *replaceStringAll(char *original, char *token, char *replacement);
+char *replaceString(char *original, char *token, char *replacement);
 /**
 * Converts unsigned int to string
 **/
@@ -75,10 +77,12 @@ int main(int argc, char **argv) {
   // printMap(labelMapping);
   map m = constructMap();
   put(&m, "Hello", 20);
-  char text[] = "Replace me Hello with 20. Soem more text";
-  char *replaced = replaceString(text, m);
-  printf("Original: %s\n", text);
-  printf("Replaced: %s\n", replaced);
+  put(&m, "Soem", 111);
+  char text[] = "Replace me Hello with 20. Some more text";
+  char *replaced = replaceStringAll(text, "o", "Hello");
+  printf("Original               : %s\n", text);
+  printf("Replaced               : %s\n", replaced);
+  printf("THIS SHOULD BE THE SAME: %s\n", text);
   // DEBUG ZONE
 
   return EXIT_SUCCESS;
@@ -191,7 +195,8 @@ vector tokenise(char *start, const char *delimiters) {
   return tokens;
 }
 
-char *replaceString(char *original, map m) {
+char *replaceStringMap(char *original, map m) {
+  /*
   // char *replaced;
   vector tokens = tokenise(original, DELIMITERS);
   // cycle through the tokens and repalce all occorunces of m keys with
@@ -218,6 +223,75 @@ char *replaceString(char *original, map m) {
   }
   replaced[totalSize] = '\0';
   return replaced;
+  */
+
+  // compute total size of replaced string
+  mapNode *current = m.head;
+  uint32_t replaceSize = strlen(original);
+  while (current) {
+    char *p;
+    char *orignalPtr = original;
+    while ((p = strstr(orignalPtr, current->key))) {
+      uint32_t keySize = (uint32_t) strlen(current->key);
+      orignalPtr = p + keySize;
+      replaceSize += (uint32_t) strlen(uintToString(current->value));
+      replaceSize -= keySize;
+    }
+    current = current->next;
+  }
+
+  // for each map node search and check if the string value of the node
+  // can be found in the string original and if found replace it with
+  // its mapping
+  printf("%d\n", replaceSize);
+  char *replaced = malloc((replaceSize + 1) * sizeof(char));
+  current = m.head;
+  while (current) {
+    char *p;
+    char *orignalPtr = original;
+    while ((p = strstr(orignalPtr, current->key))) {
+      uint32_t keySize = (uint32_t) strlen(current->key);
+      orignalPtr = p + keySize;
+      replaceSize += (uint32_t) strlen(uintToString(current->value));
+      replaceSize -= keySize;
+    }
+    current = current->next;
+  }
+
+  return replaced;
+}
+
+char *replaceStringAll(char *original, char *token, char *replacement) {
+  char *p;
+
+  while ((p = strstr(original, token))) {
+    original = replaceString(original, token, replacement);
+  }
+
+  return NULL;
+}
+
+char *replaceString(char *original, char *token, char *replacement) {
+  char *p;
+  char *replacedString;
+  int originalSize = strlen(original);
+  int tokenSize = strlen(token);
+  int replacementSize = strlen(replacement);
+  int totalSize = originalSize + 1;
+
+  if ((p = strstr(original, token))) {
+    totalSize += tokenSize + replacementSize;
+    replacedString = malloc(totalSize * sizeof(char));
+
+    strcpy(replacedString, original);
+    strcpy(replacedString + (p - original), replacement);
+    strcpy(replacedString + (p - original) + replacementSize, p + tokenSize);
+  } else {
+    replacedString = malloc(totalSize * sizeof(char));
+    strcpy(replacedString, original);
+  }
+
+  return replacedString;
 }
 
 char *uintToString(uint32_t num) {
@@ -229,7 +303,7 @@ char *uintToString(uint32_t num) {
     n /= 10;
   } while (n != 0);
 
-  char *ret = malloc(length + 1);
+  char *ret = malloc((length + 1) * sizeof(char));
 
   for (int i = 0; i < length; i++) {
     ret[length - i - 1] = num % 10 + '0';
