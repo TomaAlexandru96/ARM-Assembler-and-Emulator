@@ -5,24 +5,21 @@
 #define MEMORY_SIZE 4
 
 uint32_t firstPass(FILE *input, map *labelMapping,
-              char *errorMessage, uint32_t *instructionsNumber);
+              char errorMessage[], uint32_t *instructionsNumber);
 void secondPass(uint32_t linesNumber, uint32_t instructions[],
-              char *errorMessage, FILE *input, map labelMapping);
+              char errorMessage[], FILE *input, map labelMapping);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
 bool isLabel(char *token);
-char *replaceStringMap(char *original, map m);
-char *replaceStringAll(char *original, char *token, char *replacement);
-char *replaceString(char *original, char *token, char *replacement);
 /**
 * Converts unsigned int to string
 **/
 char *uintToString(uint32_t num);
-uint32_t decode();
-uint32_t decodeDataProcessing();
-uint32_t decodeMultiply();
-uint32_t decodeSingleDataTransfer();
-uint32_t decodeBranch();
+uint32_t decode(char *line, map labelMapping, char errorMessage[]);
+uint32_t decodeDataProcessing(char *line, char errorMessage[]);
+uint32_t decodeMultiply(char *line, char errorMessage[]);
+uint32_t decodeSingleDataTransfer(char *line, char errorMessage[]);
+uint32_t decodeBranch(char *line, map labelMapping, char errorMessage[]);
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -38,7 +35,7 @@ int main(int argc, char **argv) {
     return EXIT_FAILURE;
   }
 
-  char errorMessage[] = "";
+  char *errorMessage = malloc(0);
   uint32_t instructionsNumber;
   map labelMapping = constructMap();
   /**
@@ -74,22 +71,13 @@ int main(int argc, char **argv) {
   fclose(output);
 
   // DEBUG ZONE
-  // printMap(labelMapping);
-  map m = constructMap();
-  put(&m, "Hello", 20);
-  put(&m, "Soem", 111);
-  char text[] = "Replace me Hello with 20. Some more text";
-  char *replaced = replaceStringAll(text, "o", "Hello");
-  printf("Original               : %s\n", text);
-  printf("Replaced               : %s\n", replaced);
-  printf("THIS SHOULD BE THE SAME: %s\n", text);
   // DEBUG ZONE
 
   return EXIT_SUCCESS;
 }
 
 uint32_t firstPass(FILE *input, map *labelMapping,
-                  char *errorMessage, uint32_t *instructionsNumber) {
+                  char errorMessage[], uint32_t *instructionsNumber) {
   uint32_t lineNumber = 1;
   uint32_t currentMemoryLocation = 0;
   vector currentLabels = constructVector();
@@ -112,7 +100,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
           char error[] = "Multiple definitions of the same label: ";
           strcat(error, token);
           strcat(error, "\n");
-          // strcat(errorMessage, error);
+          strcat(errorMessage, error);
         }
         putBack(&currentLabels, token);
       }
@@ -132,21 +120,52 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     clearVector(&tokens);
     lineNumber++;
   }
+
+  // map all remaining unmached labels to current memory location
+  while (!isEmptyVector(currentLabels)) {
+    // map all labels to current memorry location
+    put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
+  }
+
   clearVector(&currentLabels);
   return lineNumber - 1;
 }
 
 void secondPass(uint32_t linesNumber, uint32_t instructions[],
-              char *errorMessage, FILE *input, map labelMapping) {
+              char errorMessage[], FILE *input, map labelMapping) {
   char buffer[MAX_LINE_LENGTH];
   int i = 0;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
-    // printf("Original: %s", buffer);
-    // replaceString(buffer, labelMapping);
-    //printf("Replaced: %s", buffer);
-    i++;
+    printf("%s", buffer);
+
+    vector tokens = tokenise(buffer, DELIMITERS);
+
+    while (!isEmptyVector(tokens)) {
+      char *token = (char *) getFront(&tokens);
+      uint32_t *pType;
+      if ((pType = get(ALL_INSTRUCTIONS, token))) {
+        // if there is a vlid isntruction decode it and increase
+        // instruction counter
+
+
+        i++;
+      }
+
+      if (!isLabel(token)) {
+        // throw error because instruction is undefined
+        char error[] = "Undefined instruction: ";
+        strcat(error, token);
+        strcat(error, "\n");
+        printf("%s\n", error);
+        // strcat(errorMessage, error);
+      }
+    }
   }
+}
+
+uint32_t decode(char *line, map labelMapping, char errorMessage[]) {
+  return 0;
 }
 
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
@@ -172,14 +191,9 @@ vector tokenise(char *start, const char *delimiters) {
       tokenSize--;
       // make sapce for token string
       char *token = malloc((tokenSize + 1) * sizeof(char));
-      // make space for delimiter
-      char *delim = malloc(2 * sizeof(char));
       strncpy(token, start + i - tokenSize, tokenSize);
-      strncpy(delim, start + i, 1);
       token[tokenSize] = '\0';
-      delim[1] = '\0';
       putBack(&tokens, token);
-      putBack(&tokens, delim);
       tokenSize = 0;
     }
   }
@@ -193,105 +207,6 @@ vector tokenise(char *start, const char *delimiters) {
   }
 
   return tokens;
-}
-
-char *replaceStringMap(char *original, map m) {
-  /*
-  // char *replaced;
-  vector tokens = tokenise(original, DELIMITERS);
-  // cycle through the tokens and repalce all occorunces of m keys with
-  // their value
-  for (int i = 0; i < tokens.size; i++) {
-    const char *token = getFront(&tokens);
-    uint32_t *pSearch = get(m, token);
-    if (pSearch) {
-      token = uintToString(*pSearch);
-    }
-    putBack(&tokens, token);
-  }
-
-  printVector(tokens);
-
-  // concatenate all tokens together
-  int totalSize = getTotalLengthSize(tokens);
-  char *replaced = malloc(totalSize + 1);
-  int i = 0;
-  while (!isEmptyVector(tokens)) {
-    const char *token = getFront(&tokens);
-    strcpy(replaced + i, token);
-    i = strlen(token);
-  }
-  replaced[totalSize] = '\0';
-  return replaced;
-  */
-
-  // compute total size of replaced string
-  mapNode *current = m.head;
-  uint32_t replaceSize = strlen(original);
-  while (current) {
-    char *p;
-    char *orignalPtr = original;
-    while ((p = strstr(orignalPtr, current->key))) {
-      uint32_t keySize = (uint32_t) strlen(current->key);
-      orignalPtr = p + keySize;
-      replaceSize += (uint32_t) strlen(uintToString(current->value));
-      replaceSize -= keySize;
-    }
-    current = current->next;
-  }
-
-  // for each map node search and check if the string value of the node
-  // can be found in the string original and if found replace it with
-  // its mapping
-  printf("%d\n", replaceSize);
-  char *replaced = malloc((replaceSize + 1) * sizeof(char));
-  current = m.head;
-  while (current) {
-    char *p;
-    char *orignalPtr = original;
-    while ((p = strstr(orignalPtr, current->key))) {
-      uint32_t keySize = (uint32_t) strlen(current->key);
-      orignalPtr = p + keySize;
-      replaceSize += (uint32_t) strlen(uintToString(current->value));
-      replaceSize -= keySize;
-    }
-    current = current->next;
-  }
-
-  return replaced;
-}
-
-char *replaceStringAll(char *original, char *token, char *replacement) {
-  char *p;
-
-  while ((p = strstr(original, token))) {
-    original = replaceString(original, token, replacement);
-  }
-
-  return NULL;
-}
-
-char *replaceString(char *original, char *token, char *replacement) {
-  char *p;
-  char *replacedString;
-  int originalSize = strlen(original);
-  int tokenSize = strlen(token);
-  int replacementSize = strlen(replacement);
-  int totalSize = originalSize + 1;
-
-  if ((p = strstr(original, token))) {
-    totalSize += tokenSize + replacementSize;
-    replacedString = malloc(totalSize * sizeof(char));
-
-    strcpy(replacedString, original);
-    strcpy(replacedString + (p - original), replacement);
-    strcpy(replacedString + (p - original) + replacementSize, p + tokenSize);
-  } else {
-    replacedString = malloc(totalSize * sizeof(char));
-    strcpy(replacedString, original);
-  }
-
-  return replacedString;
 }
 
 char *uintToString(uint32_t num) {
