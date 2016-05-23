@@ -182,11 +182,6 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
    bool resultAllZeros = false;
    int carry = -1;
    int auxResultArithmeticOps = -1;
- //// DEBUGGING
-   if(opcode == 4) {
-     printf("bit I is = %d\n", I);
-   }
-/////
    if(I) {
      int rotate = getRotate(instruction);
      int immediate = getImm(instruction);
@@ -195,13 +190,8 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
      executeOperation(pState, Rdest, Rn, rotatedImmediate,
                       auxResultArithmeticOps, carry, S, resultAllZeros, opcode);
    } else {
-     /////
-     if(opcode == 4) {
-       printf("%s\n", "I am adding");
-     }
      int shift = getShift(instruction);
      int Rm = getRm(instruction);
-     printf("Shift: %d; Rm: %d\n", shift, Rm);
      int shiftType = getShiftType(shift); //2 bits (UX to 32)
      int highBitRm = getMSbit(pState->regs[Rm]);
      if(getLSbit(shift)) {
@@ -213,11 +203,8 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
        int shiftValueInteger = (shift & maskInteger) >> 4;
        int contentsRm = pState->regs[Rm];
        int operand2ThroughShifter = -1;
-       printf("%s\n", "XXXXXXXXXXXXXXXXXXXXXXX");
-       printf("shiftType %d\n", shiftType);
        switch(shiftType) {
          case 0x0: operand2ThroughShifter = contentsRm << shiftValueInteger;
-                   printf("operand2 becomes %d\n", operand2ThroughShifter);
                    //carry = getMSbit(pState->regs[Rm] <<
                    //               (shiftValueInteger - 1));
                    //resultAllZeros = isZero(operand2ThroughShifter);
@@ -482,22 +469,14 @@ bool shouldExecute(int instruction, proc_state_t *pState) {
    int Z = pState->ZER;
    int V = pState->OVF;
    switch(cond) {
-     case 0:
-             return Z == 1;
-     case 1:
-             return Z == 0;
-     case 10:
-             return N == V;
-     case 11:
-             return N != V;
-     case 12:
-             return ((Z == 0) && (N == V));
-     case 13:
-             return ((Z == 1) || (N != V));
-     case 14:
-             return true;
-     default:
-             return false;
+     case 0:  return Z == 1;
+     case 1:  return Z == 0;
+     case 10: return N == V;
+     case 11: return N != V;
+     case 12: return ((Z == 0) && (N == V));
+     case 13: return ((Z == 1) || (N != V));
+     case 14: return true;
+     default: return false;
    }
 }
 
