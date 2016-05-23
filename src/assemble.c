@@ -11,18 +11,21 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
               char errorMessage[], FILE *input, map labelMapping);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
-bool isLabel(char *token);
+bool isLabel(const char *token);
 void printBinary(uint32_t nr);
+void setCond(uint32_t *x, char *cond);
 /**
 * Converts unsigned int to string
 **/
 char *uintToString(uint32_t num);
 uint32_t decode(int type, vector *tokens,
-                      map labelMapping, char errorMessage[]);
-uint32_t decodeDataProcessing(vector *tokens, char errorMessage[]);
-uint32_t decodeMultiply(vector *tokens, char errorMessage[]);
-uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[]);
-uint32_t decodeBranch(vector *tokens, map labelMapping, char errorMessage[]);
+                      map labelMapping, char errorMessage[], uint32_t ln);
+uint32_t decodeDataProcessing(vector *tokens, char errorMessage[], uint32_t ln);
+uint32_t decodeMultiply(vector *tokens, char errorMessage[], uint32_t ln);
+uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[],
+                                  uint32_t ln);
+uint32_t decodeBranch(vector *tokens, map labelMapping,
+                      char errorMessage[], uint32_t ln);
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -60,7 +63,7 @@ int main(int argc, char **argv) {
   uint32_t instructions[instructionsNumber];
   rewind(input); // reset file pointer to the beginning of the file
   secondPass(linesNumber, instructions,
-                  errorMessage, input, labelMapping);
+                errorMessage, input, labelMapping);
 
   // if we have compile erros stop and print errors
   if (errorMessage[0] != '\0') {
@@ -94,13 +97,15 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
     while (!isEmptyVector(tokens)) {
-      char *token = (char *) getFront(&tokens);
+      const char *token = (const char *) getFront(&tokens);
       if (isLabel(token)) {
         if (get(*labelMapping, token) || contains(currentLabels, token)) {
           // if this label already exists in the mapping this means
           // that we have multiple definitions of the same label
           // therefore throw an error message
-          char error[] = "Multiple definitions of the same label: ";
+          char error[] = "[";
+          strcat(error, uintToString(lineNumber));
+          // strcat(error, "] Multiple definitions of the same label: ");
           strcat(error, token);
           strcat(error, "\n");
           strcat(errorMessage, error);
@@ -137,7 +142,8 @@ uint32_t firstPass(FILE *input, map *labelMapping,
 void secondPass(uint32_t linesNumber, uint32_t instructions[],
               char errorMessage[], FILE *input, map labelMapping) {
   char buffer[MAX_LINE_LENGTH];
-  int ins = 0;
+  uint32_t PC = 0;
+  uint32_t ln = 1;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     printf("%s", buffer);
@@ -145,54 +151,103 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
     vector tokens = tokenise(buffer, DELIMITERS);
 
     while (!isEmptyVector(tokens)) {
-      char *token = (char *) getFront(&tokens);
+      const char *token = (const char *) peekFront(tokens);
       uint32_t *pType;
       if ((pType = get(ALL_INSTRUCTIONS, token))) {
         // if there is a valid isntruction decode it and increase
         // instruction counter
-        instructions[ins] = decode(*pType, &tokens, labelMapping, errorMessage);
-        ins++;
+        instructions[PC] = decode(*pType, &tokens,
+                                  labelMapping, errorMessage, ln);
+        printBinary(instructions[PC]);
+        PC++;
       } else if (!isLabel(token)) {
         // throw error because instruction is undefined
-        char error[] = "Undefined instruction: ";
+        char error[] = "[";
+        strcat(error, uintToString(ln));
+        // strcat(error, "] Undefined instruction: ");
         strcat(error, token);
         strcat(error, "\n");
         strcat(errorMessage, error);
+        getFront(&tokens);
+      } else {
+        // we have a label
+        getFront(&tokens);
       }
     }
+
+    ln++;
   }
 }
 
 uint32_t decode(int type, vector *tokens,
-            map labelMapping, char errorMessage[]) {
+            map labelMapping, char errorMessage[], uint32_t ln) {
   switch (type) {
-    case 0: return decodeDataProcessing(tokens, errorMessage);
-    case 1: return decodeMultiply(tokens, errorMessage);
-    case 2: return decodeSingleDataTransfer(tokens, errorMessage);
-    case 3: return decodeBranch(tokens, labelMapping, errorMessage);
+    case 0: return decodeDataProcessing(tokens, errorMessage, ln);
+    case 1: return decodeMultiply(tokens, errorMessage, ln);
+    case 2: return decodeSingleDataTransfer(tokens, errorMessage, ln);
+    case 3: return decodeBranch(tokens, labelMapping, errorMessage, ln);
     case 4:
-    case 5: return 0;
+    case 5: getFront(tokens);
+            return 0;
     default: assert(false);
   }
 }
 
-uint32_t decodeDataProcessing(vector *tokens, char errorMessage[]) {
+uint32_t decodeDataProcessing(vector *tokens,
+                        char errorMessage[], uint32_t ln) {
+  getFront(tokens);
   return 0;
 }
 
-uint32_t decodeMultiply(vector *tokens, char errorMessage[]) {
+uint32_t decodeMultiply(vector *tokens,
+                        char errorMessage[], uint32_t ln) {
+  getFront(tokens);
   return 0;
 }
 
-uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[]) {
+uint32_t decodeSingleDataTransfer(vector *tokens,
+                        char errorMessage[], uint32_t ln) {
+  getFront(tokens);
   return 0;
 }
 
-uint32_t decodeBranch(vector *tokens, map labelMapping, char errorMessage[]) {
-  int ins = 0xA << 0x18;
-  printBinary(1);
-  printf("%d\n", ins);
+uint32_t decodeBranch(vector *tokens, map labelMapping,
+                        char errorMessage[], uint32_t ln) {
+  const char *branch = getFront(tokens);
+  uint32_t ins = 0xA << 0x18;
+  setCond(&ins, (char *) (branch + 1));
+  uint32_t *mem;
+  uint32_t target;
+
+  const char *expression = getFront(tokens);
+
+  if (!expression) {
+    char error[] = "[";
+    strcat(error, uintToString(ln));
+    // strcat(error, "] The expression is missing from the branch instruction.\n");
+    strcat(errorMessage, error);
+    return -1;
+  }
+
+  if ((mem = get(labelMapping, branch))) {
+    // we have a mapping
+    target = *mem;
+  } else {
+    // we have an offset
+    target = 0;
+  }
+
+  ins |= target;
+
   return ins;
+}
+
+void setCond(uint32_t *x, char *cond) {
+  uint32_t condition = *get(CONDITIONS, cond) << 0x1B;
+  // make space
+  *x <<= 4;
+  *x >>= 4;
+  *x |= condition;
 }
 
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
@@ -201,7 +256,7 @@ void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
   }
 }
 
-bool isLabel(char *token) {
+bool isLabel(const char *token) {
   return token[strlen(token) - 1] == ':';
 }
 
@@ -266,7 +321,7 @@ void printBinary(uint32_t nr) {
     if (!(i % 8) && i) {
       putchar(' ');
     }
-    putchar('0' + (nr & mask));
+    putchar((nr & mask) ? '1' : '0');
     mask >>= 1;
   }
 

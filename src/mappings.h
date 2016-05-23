@@ -91,13 +91,13 @@ map fillAllInstructions(void) {
 map fillConditions(void) {
   map m = constructMap();
 
-  put(&m, "beq", 0);
-  put(&m, "bne", 1);
-  put(&m, "bge", 10);
-  put(&m, "blt", 11);
-  put(&m, "bgt", 12);
-  put(&m, "ble", 13);
-  put(&m, "b", 14);
+  put(&m, "eq", 0);
+  put(&m, "ne", 1);
+  put(&m, "ge", 10);
+  put(&m, "lt", 11);
+  put(&m, "gt", 12);
+  put(&m, "le", 13);
+  put(&m, "", 14);
 
   return m;
 }
