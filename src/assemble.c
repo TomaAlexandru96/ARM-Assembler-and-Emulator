@@ -10,8 +10,8 @@ uint32_t firstPass(FILE *input, map *labelMapping,
 void secondPass(uint32_t linesNumber, uint32_t instructions[],
               char errorMessage[], FILE *input, map labelMapping);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
-vector tokenise(char *start, const char *delimiters);
-bool isLabel(const char *token);
+vector tokenise(char *start, char *delimiters);
+bool isLabel(char *token);
 void printBinary(uint32_t nr);
 void setCond(uint32_t *x, char *cond);
 /**
@@ -26,6 +26,12 @@ uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[],
                                   uint32_t ln);
 uint32_t decodeBranch(vector *tokens, map labelMapping,
                       char errorMessage[], uint32_t ln);
+void throwUndeifinedError(char *name, char errorMessage[], uint32_t ln);
+void throwLabelError(char *name, char errorMessage[], uint32_t ln);
+void throwExpressionError(char errorMessage[], uint32_t ln);
+void throwExpressionMissingError(char *ins, char errorMessage[], uint32_t ln);
+bool isExpression(char *exp);
+uint32_t expressionToInt(char *exp);
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -97,18 +103,14 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
     while (!isEmptyVector(tokens)) {
-      const char *token = (const char *) getFront(&tokens);
+      char *token = (char *) getFront(&tokens);
       if (isLabel(token)) {
+        token[strlen(token) - 1] = '\0';
         if (get(*labelMapping, token) || contains(currentLabels, token)) {
           // if this label already exists in the mapping this means
           // that we have multiple definitions of the same label
           // therefore throw an error message
-          char error[] = "[";
-          strcat(error, uintToString(lineNumber));
-          // strcat(error, "] Multiple definitions of the same label: ");
-          strcat(error, token);
-          strcat(error, "\n");
-          strcat(errorMessage, error);
+          throwLabelError(token, errorMessage, lineNumber);
         }
         putBack(&currentLabels, token);
       }
@@ -146,12 +148,10 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
   uint32_t ln = 1;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
-    printf("%s", buffer);
-
     vector tokens = tokenise(buffer, DELIMITERS);
 
     while (!isEmptyVector(tokens)) {
-      const char *token = (const char *) peekFront(tokens);
+      char *token = (char *) peekFront(tokens);
       uint32_t *pType;
       if ((pType = get(ALL_INSTRUCTIONS, token))) {
         // if there is a valid isntruction decode it and increase
@@ -162,12 +162,7 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         PC++;
       } else if (!isLabel(token)) {
         // throw error because instruction is undefined
-        char error[] = "[";
-        strcat(error, uintToString(ln));
-        // strcat(error, "] Undefined instruction: ");
-        strcat(error, token);
-        strcat(error, "\n");
-        strcat(errorMessage, error);
+        throwUndeifinedError(token, errorMessage, ln);
         getFront(&tokens);
       } else {
         // we have a label
@@ -213,32 +208,27 @@ uint32_t decodeSingleDataTransfer(vector *tokens,
 
 uint32_t decodeBranch(vector *tokens, map labelMapping,
                         char errorMessage[], uint32_t ln) {
-  const char *branch = getFront(tokens);
+  char *branch = (char *) getFront(tokens);
   uint32_t ins = 0xA << 0x18;
   setCond(&ins, (char *) (branch + 1));
   uint32_t *mem;
   uint32_t target;
 
-  const char *expression = getFront(tokens);
+  char *expression = (char *) getFront(tokens);
 
   if (!expression) {
-    char error[] = "[";
-    strcat(error, uintToString(ln));
-    // strcat(error, "] The expression is missing from the branch instruction.\n");
-    strcat(errorMessage, error);
+    throwExpressionMissingError(branch, errorMessage, ln);
     return -1;
   }
 
-  if ((mem = get(labelMapping, branch))) {
+  if ((mem = get(labelMapping, expression))) {
     // we have a mapping
     target = *mem;
   } else {
     // we have an offset
     target = 0;
   }
-
   ins |= target;
-
   return ins;
 }
 
@@ -256,11 +246,11 @@ void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
   }
 }
 
-bool isLabel(const char *token) {
+bool isLabel(char *token) {
   return token[strlen(token) - 1] == ':';
 }
 
-vector tokenise(char *start, const char *delimiters) {
+vector tokenise(char *start, char *delimiters) {
   int tokenSize = 0;
   int i;
   vector tokens = constructVector();
@@ -289,6 +279,24 @@ vector tokenise(char *start, const char *delimiters) {
   }
 
   return tokens;
+}
+
+bool isExpression(char *exp) {
+  if (exp[0] != '#') {
+    return false;
+  }
+
+  for (int i = 1; exp[i] != '\0'; i++) {
+    if (exp[i] < '0' || exp[i] > '9') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+uint32_t expressionToInt(char *exp) {
+  return (uint32_t) strtol(exp + 1, (char **) NULL, 10);
 }
 
 char *uintToString(uint32_t num) {
@@ -326,6 +334,38 @@ void printBinary(uint32_t nr) {
   }
 
   putchar('\n');
+}
+
+// ----------------------ERRORS--------------------------------
+void throwUndeifinedError(char* name, char errorMessage[], uint32_t ln) {
+  char error[] = "[";
+  strcat(error, uintToString(ln));
+  // strcat(error, "] Undefined instruction: ");
+  strcat(error, name);
+  strcat(error, "\n");
+  strcat(errorMessage, error);
+}
+
+void throwLabelError(char *name, char errorMessage[], uint32_t ln) {
+  char error[] = "[";
+  strcat(error, uintToString(ln));
+  // strcat(error, "] Multiple definitions of the same label: ");
+  strcat(error, name);
+  strcat(error, "\n");
+  strcat(errorMessage, error);
+}
+
+void throwExpressionError(char errorMessage[], uint32_t ln) {
+
+}
+
+void throwExpressionMissingError(char *ins, char errorMessage[], uint32_t ln) {
+  char error[] = "[";
+  strcat(error, uintToString(ln));
+  // strcat(error, "] The expression is missing from the");
+  strcat(error, ins);
+  strcat(error, " instruction.\n");
+  strcat(errorMessage, error);
 }
 
 // ---------------------ADT TESTS------------------------------
