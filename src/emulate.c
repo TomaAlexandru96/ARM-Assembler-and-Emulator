@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <assert.h>
 
 #define MEM_SIZE_BYTES 16384 // 2 ^ 14 instruction addresses
 #define NUMBER_REGS 17
@@ -90,6 +91,8 @@ int getShiftType(int value);
 
 int arShift(int value, int numberOfTimes, int signBit);
 
+int getBitAtPosition(int value, int shiftValueInteger);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -121,7 +124,7 @@ void printProcessorState(proc_state_t *pState) {
     content = (pState->regs)[i];
     if(i != INDEX_LR && i != INDEX_SP) {
      if(i == INDEX_PC) {
-       printf("PC WHYYYYYY  :%10d (0x%.8x)\n", content, content);
+       printf("PC   :%10d (0x%.8x)\n", content, content);
      } else if(i == INDEX_CPSR) {
        printf("CPSR :%10d (0x%.8x)\n", content, content);
      } else {
@@ -141,25 +144,48 @@ void printPipeline(pipeline_t *pipeline) {
 
 
 void procCycle(proc_state_t *pState) {
-  printf("%s\n", "I am in procCycle");
+  /*printf("%s\n", "I am in procCycle");
   pipeline_t pipeline;
   pipeline.fetched = (pState->memory)[pState->PC];
   pipeline.decoded = -1;
   printPipeline(&pipeline);
-     printProcessorState(pState);
-     printf("%s\n", "Before loop");
-     printProcessorState(pState);
-     while(pipeline.fetched) {
-     decodeFetched(pipeline.fetched, pState);
-     pipeline.decoded = pipeline.fetched;
-     pState->regs[INDEX_PC] = pState->regs[INDEX_PC] + 4;
-     pState->PC = pState->regs[INDEX_PC];
-     pipeline.fetched = pState->memory[pState->PC / 4];
+  printProcessorState(pState);
+  printf("%s\n", "Before loop");
+  printProcessorState(pState);
+  while(pipeline.fetched) {
+    decodeFetched(pipeline.fetched, pState);
+    pipeline.decoded = pipeline.fetched;
+    pState->regs[INDEX_PC] = pState->regs[INDEX_PC] + 4;
+    pState->PC = pState->regs[INDEX_PC];
+    pipeline.fetched = pState->memory[pState->PC / 4];
+  }
+  printf("%s\n", "After loop");
+  printProcessorState(pState);*/
+
+  printf("%s\n", "I am in procCycle");
+  pipeline_t pipeline = {-1, -1};
+  bool finished = false;
+  printf("%s\n", "Before loop");
+  printProcessorState(pState);
+  // Initialisation
+  pState->PC = 4;
+  pState->regs[INDEX_PC] = pState->PC;
+  // PC is stored twice in pState(regs array and separate field)
+  pipeline.fetched = pState->memory[0];
+
+  while (!finished) {
+    pState->PC += 4;
+    pState->regs[INDEX_PC] = pState->PC;
+    pipeline.decoded = pipeline.fetched;
+    pipeline.fetched = pState->memory[pState->PC / 4 - 1];
+    if (pipeline.decoded != -1) {
+      decodeFetched(pipeline.decoded, pState);
+    }
+    finished = !pipeline.decoded;
   }
   printf("%s\n", "After loop");
   printProcessorState(pState);
 }
-
 //--------------Execute DataProcessingI----------------------------------------
 void executeDataProcessing(int instruction, proc_state_t *pState) {
    int S = getSBit(instruction);
@@ -170,7 +196,11 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
    bool resultAllZeros = false;
    int carry = -1;
    int auxResultArithmeticOps = -1;
-
+ //// DEBUGGING
+   if(opcode == 4) {
+     printf("bit I is = %d\n", I);
+   }
+/////
    if(I) {
      int rotate = getRotate(instruction);
      int immediate = getImm(instruction);
@@ -244,8 +274,13 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
                 break;
      }
    } else {
+     /////
+     if(opcode == 4) {
+       printf("%s\n", "I am adding");
+     }
      int shift = getShift(instruction);
      int Rm = getRm(instruction);
+     printf("Shift: %d; Rm: %d\n", shift, Rm);
      int shiftType = getShiftType(shift); //2 bits (UX to 32)
      int highBitRm = getMSbit(pState->regs[Rm]);
      if(getLSbit(shift)) {
@@ -255,28 +290,35 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
        //integer
        int maskInteger = 0xF0;
        int shiftValueInteger = (shift & maskInteger) >> 4;
+       int contentsRm = pState->regs[Rm];
+      // Not useful now int operand2Through shifter = -1;//
+       printf("Shifting by %d\n", shiftValueInteger);
        switch(shiftType) {
-         case 0x0: pState->regs[Rdest] = pState->regs[Rm] << shiftValueInteger;
+         case 0x0: pState->regs[Rdest] = contentsRm << shiftValueInteger;
                    auxResultArithmeticOps = pState->regs[Rdest];
                    carry = getMSbit(pState->regs[Rm] <<
                                    (shiftValueInteger - 1));
                    resultAllZeros = isZero(auxResultArithmeticOps);
                    break;
-         case 0x1: pState->regs[Rdest] = pState->regs[Rm] >> shiftValueInteger;
+         case 0x1: pState->regs[Rdest] = contentsRm >> shiftValueInteger;
                    auxResultArithmeticOps = pState->regs[Rdest];
-                   carry = getLSbit(pState->regs[Rm] >>
+                   carry = getLSbit(contentsRm >>
                                    (shiftValueInteger - 1));
                    resultAllZeros = isZero(auxResultArithmeticOps);
                    break;
-         case 0x2: pState->regs[Rdest] = arShift(pState->regs[Rm],
+         case 0x2: pState->regs[Rdest] = arShift(contentsRm,
                                                  shiftValueInteger, highBitRm);
                    auxResultArithmeticOps = pState->regs[Rdest];
                    carry = getLSbit(arShift(pState->regs[Rm],
                                     shiftValueInteger - 1, highBitRm));
                    resultAllZeros = isZero(auxResultArithmeticOps);
                    break;
-         case 0x3:
-                 //TODO
+         case 0x3: pState->regs[Rdest] = rightRotate(pState->regs[Rm],
+                                                     shiftValueInteger);
+                   auxResultArithmeticOps = pState->regs[Rdest];
+                   carry = getBitAtPosition(pState->regs[Rm],
+                                            shiftValueInteger);
+                   resultAllZeros = isZero(auxResultArithmeticOps);
                    break;
        }
      }
@@ -301,6 +343,19 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
    }
 
 
+}
+
+
+
+
+int getBitAtPosition(int value, int shiftValueInteger) {
+  if(shiftValueInteger) {
+    int mask = 1 << (shiftValueInteger - 1);
+    value = value & mask;
+    return value >> (shiftValueInteger - 1);
+  } else {
+    return 0;
+  }
 }
 
 int arShift(int value, int numberOfTimes, int signBit) {
