@@ -15,11 +15,12 @@ bool isLabel(char *token);
 * Converts unsigned int to string
 **/
 char *uintToString(uint32_t num);
-uint32_t decode(char *line, map labelMapping, char errorMessage[]);
-uint32_t decodeDataProcessing(char *line, char errorMessage[]);
-uint32_t decodeMultiply(char *line, char errorMessage[]);
-uint32_t decodeSingleDataTransfer(char *line, char errorMessage[]);
-uint32_t decodeBranch(char *line, map labelMapping, char errorMessage[]);
+uint32_t decode(int type, vector *tokens,
+                      map labelMapping, char errorMessage[]);
+uint32_t decodeDataProcessing(vector *tokens, char errorMessage[]);
+uint32_t decodeMultiply(vector *tokens, char errorMessage[]);
+uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[]);
+uint32_t decodeBranch(vector *tokens, map labelMapping, char errorMessage[]);
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -134,7 +135,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
 void secondPass(uint32_t linesNumber, uint32_t instructions[],
               char errorMessage[], FILE *input, map labelMapping) {
   char buffer[MAX_LINE_LENGTH];
-  int i = 0;
+  int ins = 0;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     printf("%s", buffer);
@@ -145,26 +146,47 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
       char *token = (char *) getFront(&tokens);
       uint32_t *pType;
       if ((pType = get(ALL_INSTRUCTIONS, token))) {
-        // if there is a vlid isntruction decode it and increase
+        // if there is a valid isntruction decode it and increase
         // instruction counter
-
-
-        i++;
-      }
-
-      if (!isLabel(token)) {
+        instructions[ins] = decode(*pType, &tokens, labelMapping, errorMessage);
+        ins++;
+      } else if (!isLabel(token)) {
         // throw error because instruction is undefined
         char error[] = "Undefined instruction: ";
         strcat(error, token);
         strcat(error, "\n");
-        printf("%s\n", error);
-        // strcat(errorMessage, error);
+        strcat(errorMessage, error);
       }
     }
   }
 }
 
-uint32_t decode(char *line, map labelMapping, char errorMessage[]) {
+uint32_t decode(int type, vector *tokens,
+                            map labelMapping, char errorMessage[]) {
+  switch (type) {
+    case 0: return decodeDataProcessing(tokens, errorMessage);
+    case 1: return decodeMultiply(tokens, errorMessage);
+    case 2: return decodeSingleDataTransfer(tokens, errorMessage);
+    case 3: return decodeBranch(tokens, labelMapping, errorMessage);
+    case 4:
+    case 5: return 0;
+    default: assert(false);
+  }
+}
+
+uint32_t decodeDataProcessing(vector *tokens, char errorMessage[]) {
+  return 0;
+}
+
+uint32_t decodeMultiply(vector *tokens, char errorMessage[]) {
+  return 0;
+}
+
+uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[]) {
+  return 0;
+}
+
+uint32_t decodeBranch(vector *tokens, map labelMapping, char errorMessage[]) {
   return 0;
 }
 
