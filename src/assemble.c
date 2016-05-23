@@ -3,6 +3,7 @@
 #define MAX_LINE_LENGTH 512
 #define DELIMITERS " ,\n"
 #define MEMORY_SIZE 4
+#define INSTRUCTION_SIZE 32
 
 uint32_t firstPass(FILE *input, map *labelMapping,
               char errorMessage[], uint32_t *instructionsNumber);
@@ -11,6 +12,7 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, const char *delimiters);
 bool isLabel(char *token);
+void printBinary(uint32_t nr);
 /**
 * Converts unsigned int to string
 **/
@@ -162,7 +164,7 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
 }
 
 uint32_t decode(int type, vector *tokens,
-                            map labelMapping, char errorMessage[]) {
+            map labelMapping, char errorMessage[]) {
   switch (type) {
     case 0: return decodeDataProcessing(tokens, errorMessage);
     case 1: return decodeMultiply(tokens, errorMessage);
@@ -187,7 +189,10 @@ uint32_t decodeSingleDataTransfer(vector *tokens, char errorMessage[]) {
 }
 
 uint32_t decodeBranch(vector *tokens, map labelMapping, char errorMessage[]) {
-  return 0;
+  int ins = 0xA << 0x18;
+  printBinary(1);
+  printf("%d\n", ins);
+  return ins;
 }
 
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
@@ -250,6 +255,22 @@ char *uintToString(uint32_t num) {
   ret[length] = '\0';
 
   return ret;
+}
+
+void printBinary(uint32_t nr) {
+  uint32_t mask = 1 << (INSTRUCTION_SIZE - 1);
+
+  printf("%d: ", nr);
+
+  for (int i = 0; i < INSTRUCTION_SIZE; i++) {
+    if (!(i % 8) && i) {
+      putchar(' ');
+    }
+    putchar('0' + (nr & mask));
+    mask >>= 1;
+  }
+
+  putchar('\n');
 }
 
 // ---------------------ADT TESTS------------------------------
