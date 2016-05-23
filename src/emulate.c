@@ -93,6 +93,10 @@ int arShift(int value, int numberOfTimes, int signBit);
 
 int getBitAtPosition(int value, int shiftValueInteger);
 
+void executeOperation(proc_state_t *pState, int Rdest,
+                     int Rn, int operand2, int auxResultArithmeticOps,
+                     int carry, int S, bool resultAllZeros, int opcode);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -144,24 +148,6 @@ void printPipeline(pipeline_t *pipeline) {
 
 
 void procCycle(proc_state_t *pState) {
-  /*printf("%s\n", "I am in procCycle");
-  pipeline_t pipeline;
-  pipeline.fetched = (pState->memory)[pState->PC];
-  pipeline.decoded = -1;
-  printPipeline(&pipeline);
-  printProcessorState(pState);
-  printf("%s\n", "Before loop");
-  printProcessorState(pState);
-  while(pipeline.fetched) {
-    decodeFetched(pipeline.fetched, pState);
-    pipeline.decoded = pipeline.fetched;
-    pState->regs[INDEX_PC] = pState->regs[INDEX_PC] + 4;
-    pState->PC = pState->regs[INDEX_PC];
-    pipeline.fetched = pState->memory[pState->PC / 4];
-  }
-  printf("%s\n", "After loop");
-  printProcessorState(pState);*/
-
   printf("%s\n", "I am in procCycle");
   pipeline_t pipeline = {-1, -1};
   bool finished = false;
@@ -206,73 +192,8 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
      int immediate = getImm(instruction);
      rotate =  2 * rotate;
      int rotatedImmediate = rightRotate(immediate, rotate);
-     switch(opcode) {
-       case 0x0: pState->regs[Rdest] = pState->regs[Rn] & rotatedImmediate;
-       /*AND*/   auxResultArithmeticOps = pState->regs[Rdest];
-                 carry = 0;
-                 resultAllZeros = isZero(auxResultArithmeticOps);
-                 //Set CPSR bits if(S)
-                break;
-       case 0x1: pState->regs[Rdest] = pState->regs[Rn] ^ rotatedImmediate;
-        /*EOR*/  auxResultArithmeticOps = pState->regs[Rdest];
-                 carry = 0;
-                 resultAllZeros = isZero(pState->regs[Rdest]);
-                 //Set CPSR bits if(S)
-                break;
-       case 0x2: pState->regs[Rdest] = pState->regs[Rn] - rotatedImmediate;
-       /*SUB*/   auxResultArithmeticOps = pState->regs[Rdest];
-                 //C is 0 if borrow produced, 1 Otherwise
-                 carry = getAdditionCarry(pState->regs[Rn],
-                                          (!(rotatedImmediate) + 1)) == 1 ?
-                                          0 : 1;
-                 resultAllZeros = isZero(pState->regs[Rdest]);
-                 //Set CPSR bits if(S)
-                break;
-       case 0x3: pState->regs[Rdest] = rotatedImmediate - pState->regs[Rn];
-        /*RSB*/  auxResultArithmeticOps = pState->regs[Rdest];
-                 carry = getAdditionCarry(rotatedImmediate,
-                                          !(pState->regs[Rn]) + 1);
-                 resultAllZeros = isZero(pState->regs[Rdest]);
-                 //Set CPSR bits if(S)
-                break;
-       case 0x4: pState->regs[Rdest] = pState->regs[Rn] + rotatedImmediate;
-       /*ADD*/   auxResultArithmeticOps = pState->regs[Rdest];
-                 carry = getAdditionCarry(pState->regs[Rn], rotatedImmediate);
-                 resultAllZeros = isZero(pState->regs[Rdest]);
-                //Set CPSR bits if(S)
-                break;
-      /***Onwards results are not written***/
-       case 0x8: auxResultArithmeticOps = pState->regs[Rn] & rotatedImmediate;
-      /*TST*/    carry = 0;
-                 resultAllZeros = isZero(auxResultArithmeticOps);
-                 //Set CPSR bits if(S)
-                break;
-       case 0x9: auxResultArithmeticOps = pState->regs[Rn] ^ rotatedImmediate;
-      /*TEQ*/    carry = 0;
-                 resultAllZeros = isZero(auxResultArithmeticOps);
-                 //Set CPSR bits if(S)
-                break;
-       case 0xA: auxResultArithmeticOps = pState->regs[Rn] - rotatedImmediate;
-      /*CMP*/    carry = getAdditionCarry(pState->regs[Rn],
-                                          (!(rotatedImmediate) + 1)) == 1 ?
-                                          0 : 1;
-                 resultAllZeros = isZero(auxResultArithmeticOps);
-                //Set CPSR bits if(S)
-                break;
-       case 0xC: pState->regs[Rdest] = pState->regs[Rn] | rotatedImmediate;
-      /*ORR*/    auxResultArithmeticOps = pState->regs[Rdest];
-                 carry = 0;
-                 resultAllZeros = isZero(auxResultArithmeticOps);
-                 //Set CPSR bits if(S)
-                break;
-       case 0xD: pState->regs[Rdest] = rotatedImmediate;
-       /*MOV*/   carry = 0;
-                 resultAllZeros = false;
-                 auxResultArithmeticOps = rotatedImmediate;
-                 //This result will help se the CPSR N bit
-                 //Set CPSR bits if(S)
-                break;
-     }
+     executeOperation(pState, Rdest, Rn, rotatedImmediate,
+                      auxResultArithmeticOps, carry, S, resultAllZeros, opcode);
    } else {
      /////
      if(opcode == 4) {
@@ -291,60 +212,136 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
        int maskInteger = 0xF0;
        int shiftValueInteger = (shift & maskInteger) >> 4;
        int contentsRm = pState->regs[Rm];
-      // Not useful now int operand2Through shifter = -1;//
-       printf("Shifting by %d\n", shiftValueInteger);
+       int operand2ThroughShifter = -1;
+       printf("%s\n", "XXXXXXXXXXXXXXXXXXXXXXX");
+       printf("shiftType %d\n", shiftType);
        switch(shiftType) {
-         case 0x0: pState->regs[Rdest] = contentsRm << shiftValueInteger;
-                   auxResultArithmeticOps = pState->regs[Rdest];
-                   carry = getMSbit(pState->regs[Rm] <<
-                                   (shiftValueInteger - 1));
-                   resultAllZeros = isZero(auxResultArithmeticOps);
+         case 0x0: operand2ThroughShifter = contentsRm << shiftValueInteger;
+                   printf("operand2 becomes %d\n", operand2ThroughShifter);
+                   //carry = getMSbit(pState->regs[Rm] <<
+                   //               (shiftValueInteger - 1));
+                   //resultAllZeros = isZero(operand2ThroughShifter);
                    break;
-         case 0x1: pState->regs[Rdest] = contentsRm >> shiftValueInteger;
-                   auxResultArithmeticOps = pState->regs[Rdest];
-                   carry = getLSbit(contentsRm >>
-                                   (shiftValueInteger - 1));
-                   resultAllZeros = isZero(auxResultArithmeticOps);
+         case 0x1: operand2ThroughShifter = contentsRm >> shiftValueInteger;
+                   pState->CRY = getLSbit(contentsRm >>
+                                    (shiftValueInteger - 1));
+                   //resultAllZeros = isZero(operand2ThroughShifter);
                    break;
-         case 0x2: pState->regs[Rdest] = arShift(contentsRm,
+         case 0x2: operand2ThroughShifter = arShift(contentsRm,
                                                  shiftValueInteger, highBitRm);
-                   auxResultArithmeticOps = pState->regs[Rdest];
-                   carry = getLSbit(arShift(pState->regs[Rm],
-                                    shiftValueInteger - 1, highBitRm));
-                   resultAllZeros = isZero(auxResultArithmeticOps);
+                   pState->CRY = getLSbit(arShift(pState->regs[Rm],
+                                     shiftValueInteger - 1, highBitRm));
+                   //resultAllZeros = isZero(operand2ThroughShifter);
                    break;
-         case 0x3: pState->regs[Rdest] = rightRotate(pState->regs[Rm],
+         case 0x3: operand2ThroughShifter = rightRotate(pState->regs[Rm],
                                                      shiftValueInteger);
-                   auxResultArithmeticOps = pState->regs[Rdest];
-                   carry = getBitAtPosition(pState->regs[Rm],
-                                            shiftValueInteger);
-                   resultAllZeros = isZero(auxResultArithmeticOps);
+                   pState->CRY = getBitAtPosition(pState->regs[Rm],
+                                             shiftValueInteger);
+                   //resultAllZeros = isZero(operand2ThroughShifter);
                    break;
        }
+       assert(operand2ThroughShifter != -1);
+       executeOperation(pState, Rdest, Rn, operand2ThroughShifter,
+                        auxResultArithmeticOps, carry, S,
+                        resultAllZeros, opcode);
      }
 
    }
 
-   if(S) {
-    /************
-     * Set C bit*
-     ************/
-     //barrel shifter ~ set C to carry out from any shift operation;
-     //ALU ~ C = Cout of bit 31;
-      pState->CRY = carry;
-    /************
-     * Set Z bit*
-     ************/
-      pState->ZER = resultAllZeros ? 1 : 0;
-    /************
-     * Set N bit*
-     ************/
-     pState->NEG = getMSbit(auxResultArithmeticOps);
-   }
+
 
 
 }
 
+void executeOperation(proc_state_t *pState, int Rdest,
+                     int Rn, int operand2, int auxResultArithmeticOps,
+                     int carry, int S, bool resultAllZeros, int opcode) {
+  switch(opcode) {
+    case 0x0: pState->regs[Rdest] = pState->regs[Rn] & operand2;
+    /*AND*/   auxResultArithmeticOps = pState->regs[Rdest];
+              carry = 0;
+              resultAllZeros = isZero(auxResultArithmeticOps);
+              //Set CPSR bits if(S)
+             break;
+    case 0x1: pState->regs[Rdest] = pState->regs[Rn] ^ operand2;
+     /*EOR*/  auxResultArithmeticOps = pState->regs[Rdest];
+              carry = 0;
+              resultAllZeros = isZero(pState->regs[Rdest]);
+              //Set CPSR bits if(S)
+             break;
+    case 0x2: pState->regs[Rdest] = pState->regs[Rn] - operand2;
+    /*SUB*/   auxResultArithmeticOps = pState->regs[Rdest];
+              //C is 0 if borrow produced, 1 Otherwise
+              carry = getAdditionCarry(pState->regs[Rn],
+                                       (!(operand2) + 1)) == 1 ?
+                                       0 : 1;
+              resultAllZeros = isZero(pState->regs[Rdest]);
+              //Set CPSR bits if(S)
+             break;
+    case 0x3: pState->regs[Rdest] = operand2 - pState->regs[Rn];
+     /*RSB*/  auxResultArithmeticOps = pState->regs[Rdest];
+              carry = getAdditionCarry(operand2,
+                                       !(pState->regs[Rn]) + 1);
+              resultAllZeros = isZero(pState->regs[Rdest]);
+              //Set CPSR bits if(S)
+             break;
+    case 0x4: pState->regs[Rdest] = pState->regs[Rn] + operand2;
+    /*ADD*/   auxResultArithmeticOps = pState->regs[Rdest];
+              carry = getAdditionCarry(pState->regs[Rn], operand2);
+              resultAllZeros = isZero(pState->regs[Rdest]);
+             //Set CPSR bits if(S)
+             break;
+   /***Onwards results are not written***/
+    case 0x8: auxResultArithmeticOps = pState->regs[Rn] & operand2;
+   /*TST*/    carry = 0;
+              resultAllZeros = isZero(auxResultArithmeticOps);
+              //Set CPSR bits if(S)
+             break;
+    case 0x9: auxResultArithmeticOps = pState->regs[Rn] ^ operand2;
+   /*TEQ*/    carry = 0;
+              resultAllZeros = isZero(auxResultArithmeticOps);
+              //Set CPSR bits if(S)
+             break;
+    case 0xA: auxResultArithmeticOps = pState->regs[Rn] - operand2;
+   /*CMP*/    carry = getAdditionCarry(pState->regs[Rn],
+                                       (!(operand2) + 1)) == 1 ?
+                                       0 : 1;
+              resultAllZeros = isZero(auxResultArithmeticOps);
+             //Set CPSR bits if(S)
+             break;
+    case 0xC: pState->regs[Rdest] = pState->regs[Rn] | operand2;
+   /*ORR*/    auxResultArithmeticOps = pState->regs[Rdest];
+              carry = 0;
+              resultAllZeros = isZero(auxResultArithmeticOps);
+              //Set CPSR bits if(S)
+             break;
+    case 0xD: pState->regs[Rdest] = operand2;
+    /*MOV*/   carry = 0;
+              resultAllZeros = false;
+              auxResultArithmeticOps = operand2;
+              //This result will help se the CPSR N bit
+              //Set CPSR bits if(S)
+             break;
+  }
+
+  if(S) {
+   /************
+    * Set C bit*
+    ************/
+    //barrel shifter ~ set C to carry out from any shift operation;
+    //ALU ~ C = Cout of bit 31;
+     pState->CRY = carry;
+   /************
+    * Set Z bit*
+    ************/
+     pState->ZER = resultAllZeros ? 1 : 0;
+   /************
+    * Set N bit*
+    ************/
+    pState->NEG = getMSbit(auxResultArithmeticOps);
+  }
+
+}
 
 
 
