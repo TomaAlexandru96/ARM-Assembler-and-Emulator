@@ -578,3 +578,25 @@ void printMemory(int memory[]) {
    }
    printf("%s\n", "");
 }
+
+void printMemoryLittleEndian(int memory[]) {
+   printf("%s\n", "Non-zero memory:\n");
+   printf("%s\n", "Memory layout LITTLE ENDIAN: ");
+   for(int i = 0; i < MEM_SIZE_BYTES; i++) {
+     if(memory[i]) {
+       printf("%.8x %d\n", i, convertToLittleEndian(memory[i]));
+     } else {
+       break;
+     }
+   }
+   printf("%s\n", "");
+}
+
+
+int convertToLittleEndian(int instruction) {
+  int maskByte0 = 0xFF;
+  int maskByte1 = 0xFF00;
+  int maskByte2 = 0xFF0000;
+  int maskByte3 = 0xFF000000;
+  //TODO
+}
