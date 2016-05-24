@@ -264,9 +264,10 @@ void executeOperation(proc_state_t *pState, int Rdest,
     case 0x2: pState->regs[Rdest] = pState->regs[Rn] - operand2;
     /*SUB*/   auxResultArithmeticOps = pState->regs[Rdest];
               //C is 0 if borrow produced, 1 Otherwise
-              carry = getAdditionCarry(pState->regs[Rn],
-                                       (!(operand2) + 1)) == 1 ?
-                                       0 : 1;
+              carry =  getMSbit(auxResultArithmeticOps) ? 0 : 1;
+              //getAdditionCarry(pState->regs[Rn],
+              //                       (!(operand2) + 1)) == 1 ?
+              //                         0 : 1;
               resultAllZeros = isZero(pState->regs[Rdest]);
               //Set CPSR bits if(S)
              break;
@@ -295,9 +296,8 @@ void executeOperation(proc_state_t *pState, int Rdest,
               //Set CPSR bits if(S)
              break;
     case 0xA: auxResultArithmeticOps = pState->regs[Rn] - operand2;
-   /*CMP*/    carry = getAdditionCarry(pState->regs[Rn],
-                                       (!(operand2) + 1)) == 1 ?
-                                       0 : 1;
+   /*CMP*/    carry = getMSbit(auxResultArithmeticOps) ? 0 : 1;
+
               resultAllZeros = isZero(auxResultArithmeticOps);
              //Set CPSR bits if(S)
              break;
@@ -317,20 +317,16 @@ void executeOperation(proc_state_t *pState, int Rdest,
   }
 
   if(S) {
-   /************
-    * Set C bit*
-    ************/
-    //barrel shifter ~ set C to carry out from any shift operation;
-    //ALU ~ C = Cout of bit 31;
+     //Set C bit
+     //barrel shifter ~ set C to carry out from any shift operation;
+     //ALU ~ C = Cout of bit 31;
      pState->CRY = carry;
-   /************
-    * Set Z bit*
-    ************/
+     //Set Z bit
      pState->ZER = resultAllZeros ? 1 : 0;
-   /************
-    * Set N bit*
-    ************/
-    pState->NEG = getMSbit(auxResultArithmeticOps);
+     // Set N bit
+     pState->NEG = getMSbit(auxResultArithmeticOps);
+     pState->regs[INDEX_CPSR] = (pState->NEG << 31) | (pState->ZER << 30) |
+                                (pState->CRY << 29) | (pState->OVF << 28);
   }
 
 }
