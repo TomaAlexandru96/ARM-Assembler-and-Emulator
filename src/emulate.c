@@ -276,9 +276,10 @@ void executeOperation(proc_state_t *pState, int Rdest,
     case 0x2: pState->regs[Rdest] = pState->regs[Rn] - operand2;
     /*SUB*/   auxResultArithmeticOps = pState->regs[Rdest];
               //C is 0 if borrow produced, 1 Otherwise
-              carry = getAdditionCarry(pState->regs[Rn],
-                                       (!(operand2) + 1)) == 1 ?
-                                       0 : 1;
+               carry =  getMSbit(auxResultArithmeticOps) ? 0 : 1;
+               //getAdditionCarry(pState->regs[Rn],
+               //                       (!(operand2) + 1)) == 1 ?
+               //
               resultAllZeros = isZero(pState->regs[Rdest]);
               //Set CPSR bits if(S)
              break;
@@ -295,7 +296,7 @@ void executeOperation(proc_state_t *pState, int Rdest,
               resultAllZeros = isZero(pState->regs[Rdest]);
              //Set CPSR bits if(S)
              break;
-   /***Onwards results are not written***/
+   /***Onwards results are not written to Rd***/
     case 0x8: auxResultArithmeticOps = pState->regs[Rn] & operand2;
    /*TST*/    carry = 0;
               resultAllZeros = isZero(auxResultArithmeticOps);
@@ -329,20 +330,16 @@ void executeOperation(proc_state_t *pState, int Rdest,
   }
 
   if(S) {
-   /************
-    * Set C bit*
-    ************/
+    //Set C bit
     //barrel shifter ~ set C to carry out from any shift operation;
     //ALU ~ C = Cout of bit 31;
-     pState->CRY = carry;
-   /************
-    * Set Z bit*
-    ************/
-     pState->ZER = resultAllZeros ? 1 : 0;
-   /************
-    * Set N bit*
-    ************/
+    pState->CRY = carry;
+    //Set Z bit
+    pState->ZER = resultAllZeros ? 1 : 0;
+    // Set N bit
     pState->NEG = getMSbit(auxResultArithmeticOps);
+    pState->regs[INDEX_CPSR] = (pState->NEG << 31) | (pState->ZER << 30) |
+                               (pState->CRY << 29) | (pState->OVF << 28);
   }
 
 }
@@ -468,13 +465,13 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
 
 //--------------Execute MultiplyI-----------------------------------------------
 void executeMultiply(int instruction, proc_state_t *pState) {
-  int A = getABit(instruction);
+/*  int A = getABit(instruction);
   int S = getSBitMul(instruction);
   int Rd = getRdMul(instruction);
   int Rn = getRnMul(instruction);
   int Rs = getRsMul(instruction);
   int Rm = getRmMul(instruction);
-
+*/
 }
 
 int getABit(int instruction) {
@@ -492,7 +489,7 @@ int getRdMul(int instruction) {
 }
 
 int getRnMul(int instruction) {
-  return getRd(instruction);
+  return getRdest(instruction);
 }
 
 int getRsMul(int instruction) {
