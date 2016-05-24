@@ -47,7 +47,8 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  char *errorMessage = malloc(0);
+  char *errorMessage = malloc(1);
+  errorMessage[0] = '\0';
   uint32_t instructionsNumber;
   map labelMapping = constructMap();
   /**
