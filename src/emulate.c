@@ -41,7 +41,7 @@ int convertToLittleEndian(int instruction);
 
 void printProcessorState(proc_state_t *pState);
 
-void decodeFetched(int instruction, proc_state_t *pState);
+void decodeFetched(int instruction, proc_state_t *pState, pipeline_t *pipeline);
 
 void procCycle(proc_state_t *pState);
 
@@ -55,7 +55,7 @@ void executeDataProcessing(int instruction, proc_state_t *pState);
 
 void executeMultiply(int instruction, proc_state_t *pState);
 
-void executeBranch(int instruction, proc_state_t *pState);
+void executeBranch(int instruction, proc_state_t *pState, pipeline_t *pipeline);
 
 uint8_t getCond(int instruction);
 
@@ -100,6 +100,18 @@ void executeOperation(proc_state_t *pState, int Rdest,
                      int carry, int S, bool resultAllZeros, int opcode);
 
 int getOffset(int instruction);
+
+int getABit(int instruction);
+
+int getSBitMul(int instruction);
+
+int getRdMul(int instruction);
+
+int getRnMul(int instruction);
+
+int getRsMul(int instruction);
+
+int getRmMul(int instruction);
 
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
@@ -170,7 +182,7 @@ void procCycle(proc_state_t *pState) {
     pipeline.decoded = pipeline.fetched;
     pipeline.fetched = pState->memory[pState->PC / 4 - 1];
     if (pipeline.decoded != -1) {
-      decodeFetched(pipeline.decoded, pState);
+      decodeFetched(pipeline.decoded, pState, &pipeline);
     }
     finished = !pipeline.decoded;
   }
@@ -451,17 +463,52 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
 
 }
 
+
 //------------------------------------------------------------------------------
 
 //--------------Execute MultiplyI-----------------------------------------------
 void executeMultiply(int instruction, proc_state_t *pState) {
+  int A = getABit(instruction);
+  int S = getSBitMul(instruction);
+  int Rd = getRdMul(instruction);
+  int Rn = getRnMul(instruction);
+  int Rs = getRsMul(instruction);
+  int Rm = getRmMul(instruction);
 
+}
+
+int getABit(int instruction) {
+  int maskA21 = 0x2000000;
+  return (instruction & maskA21) >> 21;
+}
+
+int getSBitMul(int instruction) {
+  int maskS20 = 0x100000;
+  return (instruction & maskS20) >> 20;
+}
+
+int getRdMul(int instruction) {
+  return getRn(instruction);
+}
+
+int getRnMul(int instruction) {
+  return getRd(instruction);
+}
+
+int getRsMul(int instruction) {
+  int mask11to8 = 0xF00;
+  return (instruction & mask11to8) >> 8;
+}
+
+int getRmMul(int instruction) {
+  int mask0to3 = 0xF;
+  return (instruction & mask0to3);
 }
 
 //------------------------------------------------------------------------------
 
 //--------------Execute Branch--------------------------------------------------
-void executeBranch(int instruction, proc_state_t *pState) {
+void executeBranch(int instruction, proc_state_t *pState, pipeline_t *pipeline){
     int offset = getOffset(instruction);
     offset = offset << 2;
     //Offset is a 32-bit value having bits[25...31] equal 0
@@ -476,6 +523,8 @@ void executeBranch(int instruction, proc_state_t *pState) {
     int PCvalue = pState-> PC;
     pState->PC = PCvalue + offset;
     pState->regs[INDEX_PC] = pState->PC;
+    pipeline->decoded = -1;
+    pipeline->fetched = -1;
 }
 
 int getOffset(int instruction) {
@@ -514,7 +563,7 @@ uint8_t getCond(int instruction) {
 }
 
 //-----------------------------------------------------------------------------
-void decodeFetched(int instruction, proc_state_t *pState) {
+void decodeFetched(int instruction, proc_state_t *pState, pipeline_t *pipeline){
   printf("I am decoding %x\n", instruction);
    int idBits = extractIDbits(instruction);
    if(idBits == 1) {
@@ -527,7 +576,7 @@ void decodeFetched(int instruction, proc_state_t *pState) {
      //check if Cond satisfied before executing
       printf("%s\n", "This is branch instruction");
       if(shouldExecute(instruction, pState)) {
-        executeBranch(instruction, pState);
+        executeBranch(instruction, pState, pipeline);
       }
    } else if(!idBits) {
       //Choose between MultiplyI and DataProcessingI
