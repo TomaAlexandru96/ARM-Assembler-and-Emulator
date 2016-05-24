@@ -37,14 +37,14 @@ int main(int argc, char **argv) {
   // Check for number of arguments
   if (argc != 3) {
     fprintf(stderr, "The function needs 2 arguments!");
-    return EXIT_FAILURE;
+    exit(EXIT_FAILURE);
   }
 
   FILE *input = fopen(argv[1], "r");
   // check file existance throw error if not found
   if (!input) {
     fprintf(stderr, "The file %s was not found", argv[1]);
-    return EXIT_FAILURE;
+    exit(EXIT_FAILURE);
   }
 
   char *errorMessage = malloc(0);
@@ -75,7 +75,10 @@ int main(int argc, char **argv) {
   // if we have compile erros stop and print errors
   if (errorMessage[0] != '\0') {
     fprintf(stderr, "%s\n", errorMessage);
-    return EXIT_FAILURE;
+    freeAll();
+    clearMap(&labelMapping);
+    free(errorMessage);
+    exit(EXIT_FAILURE);
   }
 
   FILE *output = fopen(argv[2], "wb");
@@ -84,12 +87,14 @@ int main(int argc, char **argv) {
   fclose(output);
 
   // DEBUG ZONE
-  char string[] = " Me  ssage\n";
-  vector v = tokenise(string, DELIMITERS);
-  printVector(v);
+  printMap(labelMapping);
   // DEBUG ZONE
 
-  return EXIT_SUCCESS;
+  freeAll();
+  clearMap(&labelMapping);
+  free(errorMessage);
+
+  exit(EXIT_SUCCESS);
 }
 
 uint32_t firstPass(FILE *input, map *labelMapping,
@@ -132,7 +137,6 @@ uint32_t firstPass(FILE *input, map *labelMapping,
         (*instructionsNumber)++;
       }
     }
-    clearVector(&tokens);
     lineNumber++;
   }
 
@@ -174,7 +178,6 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         getFront(&tokens);
       }
     }
-
     ln++;
   }
 }
@@ -347,23 +350,23 @@ void printBinary(uint32_t nr) {
 
 // ----------------------ERRORS--------------------------------
 void throwUndeifinedError(char* name, char errorMessage[], uint32_t ln) {
-  char error[] = "[";
+  /*char error[] = "[";
   strcat(error, uintToString(ln));
   char message[] = "] Undefined instruction: ";
   strcat(error, message);
   strcat(error, name);
   strcat(error, "\n");
-  strcat(errorMessage, error);
+  strcat(errorMessage, error);*/
 }
 
 void throwLabelError(char *name, char errorMessage[], uint32_t ln) {
-  char error[] = "[";
+  /*char error[] = "[";
   strcat(error, uintToString(ln));
   char message[] = "] Multiple definitions of the same label: ";
   strcat(error, message);
   strcat(error, name);
   strcat(error, "\n");
-  strcat(errorMessage, error);
+  strcat(errorMessage, error);*/
 }
 
 void throwExpressionError(char errorMessage[], uint32_t ln) {
@@ -371,13 +374,13 @@ void throwExpressionError(char errorMessage[], uint32_t ln) {
 }
 
 void throwExpressionMissingError(char *ins, char errorMessage[], uint32_t ln) {
-  char error[] = "[";
+  /*char error[] = "[";
   strcat(error, uintToString(ln));
   char message[] = "] The expression is missing from the ";
   strcat(error, message);
   strcat(error, ins);
   strcat(error, " instruction.\n");
-  strcat(errorMessage, error);
+  strcat(errorMessage, error);*/
 }
 
 // ---------------------ADT TESTS------------------------------

@@ -24,7 +24,7 @@ map fillConditions(void);
 * Fills all mappings
 **/
 void fillAll(void);
-
+void freeAll(void);
 // --------------------GLOBAL VARIABLES--------------------------
 map DATA_OPCODE;
 map ALL_INSTRUCTIONS;
@@ -106,4 +106,10 @@ void fillAll(void) {
   DATA_OPCODE      = fillDataToOpcode();
   ALL_INSTRUCTIONS = fillAllInstructions();
   CONDITIONS       = fillConditions();
+}
+
+void freeAll(void) {
+  clearMap(&DATA_OPCODE);
+  clearMap(&ALL_INSTRUCTIONS);
+  clearMap(&CONDITIONS);
 }
