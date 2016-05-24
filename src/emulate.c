@@ -99,6 +99,8 @@ void executeOperation(proc_state_t *pState, int Rdest,
                      int Rn, int operand2, int auxResultArithmeticOps,
                      int carry, int S, bool resultAllZeros, int opcode);
 
+int getOffset(int instruction);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -461,7 +463,7 @@ void executeMultiply(int instruction, proc_state_t *pState) {
 //--------------Execute Branch--------------------------------------------------
 void executeBranch(int instruction, proc_state_t *pState) {
     int offset = getOffset(instruction);
-    offset =<< 2;
+    offset = offset << 2;
     //Offset is a 32-bit value having bits[25...31] equal 0
     int maskBit25 = 0x2000000;
     int signBitPosition = 25;
