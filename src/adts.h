@@ -151,6 +151,7 @@ const char *getFront(vector *v) {
   } else {
     v->last = NULL;
   }
+
   free(removedNode);
   (v->size)--;
 
@@ -171,6 +172,7 @@ const char *getBack(vector *v) {
   } else {
     v->first = NULL;
   }
+
   free(removedNode);
   (v->size)--;
 
