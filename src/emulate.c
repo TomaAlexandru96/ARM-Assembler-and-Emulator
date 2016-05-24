@@ -101,6 +101,18 @@ void executeOperation(proc_state_t *pState, int Rdest,
 
 int getOffset(int instruction);
 
+int getABit(int instruction);
+
+int getSBitMul(int instruction);
+
+int getRdMul(int instruction);
+
+int getRnMul(int instruction);
+
+int getRsMul(int instruction);
+
+int getRmMul(int instruction);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -264,10 +276,9 @@ void executeOperation(proc_state_t *pState, int Rdest,
     case 0x2: pState->regs[Rdest] = pState->regs[Rn] - operand2;
     /*SUB*/   auxResultArithmeticOps = pState->regs[Rdest];
               //C is 0 if borrow produced, 1 Otherwise
-              carry =  getMSbit(auxResultArithmeticOps) ? 0 : 1;
-              //getAdditionCarry(pState->regs[Rn],
-              //                       (!(operand2) + 1)) == 1 ?
-              //                         0 : 1;
+              carry = getAdditionCarry(pState->regs[Rn],
+                                       (!(operand2) + 1)) == 1 ?
+                                       0 : 1;
               resultAllZeros = isZero(pState->regs[Rdest]);
               //Set CPSR bits if(S)
              break;
@@ -296,8 +307,9 @@ void executeOperation(proc_state_t *pState, int Rdest,
               //Set CPSR bits if(S)
              break;
     case 0xA: auxResultArithmeticOps = pState->regs[Rn] - operand2;
-   /*CMP*/    carry = getMSbit(auxResultArithmeticOps) ? 0 : 1;
-
+   /*CMP*/    carry = getAdditionCarry(pState->regs[Rn],
+                                       (!(operand2) + 1)) == 1 ?
+                                       0 : 1;
               resultAllZeros = isZero(auxResultArithmeticOps);
              //Set CPSR bits if(S)
              break;
@@ -317,16 +329,20 @@ void executeOperation(proc_state_t *pState, int Rdest,
   }
 
   if(S) {
-     //Set C bit
-     //barrel shifter ~ set C to carry out from any shift operation;
-     //ALU ~ C = Cout of bit 31;
+   /************
+    * Set C bit*
+    ************/
+    //barrel shifter ~ set C to carry out from any shift operation;
+    //ALU ~ C = Cout of bit 31;
      pState->CRY = carry;
-     //Set Z bit
+   /************
+    * Set Z bit*
+    ************/
      pState->ZER = resultAllZeros ? 1 : 0;
-     // Set N bit
-     pState->NEG = getMSbit(auxResultArithmeticOps);
-     pState->regs[INDEX_CPSR] = (pState->NEG << 31) | (pState->ZER << 30) |
-                                (pState->CRY << 29) | (pState->OVF << 28);
+   /************
+    * Set N bit*
+    ************/
+    pState->NEG = getMSbit(auxResultArithmeticOps);
   }
 
 }
@@ -447,11 +463,46 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
 
 }
 
+
 //------------------------------------------------------------------------------
 
 //--------------Execute MultiplyI-----------------------------------------------
 void executeMultiply(int instruction, proc_state_t *pState) {
+  int A = getABit(instruction);
+  int S = getSBitMul(instruction);
+  int Rd = getRdMul(instruction);
+  int Rn = getRnMul(instruction);
+  int Rs = getRsMul(instruction);
+  int Rm = getRmMul(instruction);
 
+}
+
+int getABit(int instruction) {
+  int maskA21 = 0x2000000;
+  return (instruction & maskA21) >> 21;
+}
+
+int getSBitMul(int instruction) {
+  int maskS20 = 0x100000;
+  return (instruction & maskS20) >> 20;
+}
+
+int getRdMul(int instruction) {
+  return getRn(instruction);
+}
+
+int getRnMul(int instruction) {
+  return getRd(instruction);
+}
+
+int getRsMul(int instruction) {
+  int mask11to8 = 0xF00;
+  return (instruction & mask11to8) >> 8;
+}
+
+int getRmMul(int instruction) {
+  int mask0to3 = 0xF;
+  return (instruction & mask0to3);
 }
 
 //------------------------------------------------------------------------------
@@ -460,7 +511,6 @@ void executeMultiply(int instruction, proc_state_t *pState) {
 void executeBranch(int instruction, proc_state_t *pState, pipeline_t *pipeline){
     int offset = getOffset(instruction);
     offset = offset << 2;
-
     //Offset is a 32-bit value having bits[25...31] equal 0
     int maskBit25 = 0x2000000;
     int signBitPosition = 25;
@@ -469,7 +519,6 @@ void executeBranch(int instruction, proc_state_t *pState, pipeline_t *pipeline){
     if(signBit) {
       offset = offset | mask26To31;
     }
-
     // otherwise the offset is unchanged
     int PCvalue = pState-> PC;
     pState->PC = PCvalue + offset;
