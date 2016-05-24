@@ -17,13 +17,13 @@ struct map {
 
 struct mapNode {
   mapNode    *next;
-  const char *key;
+  char *key;
   uint32_t    value;
 };
 
 struct vectorNode {
   vectorNode *previous;
-  const char *value;
+  char *value;
   vectorNode *next;
 };
 
@@ -42,7 +42,7 @@ map constructMap(void);
 * Retrives the pointer to the value of the key
 * Returns NULL if nothing is found
 **/
-uint32_t *get(map m, const char *key);
+uint32_t *get(map m, char *key);
 
 /**
 * Takes a pointer to a table, a key of type string
@@ -50,7 +50,7 @@ uint32_t *get(map m, const char *key);
 * If the key is found the value is modified to the value parameter
 * If the key is not found the pair (key, value) is added to the table
 **/
-void put(map *m, const char *key, uint32_t value);
+void put(map *m, char *key, uint32_t value);
 
 /**
 * Takes 3 parameters: pointer to table, a key, a pointer which will be
@@ -59,7 +59,7 @@ void put(map *m, const char *key, uint32_t value);
 * Returns false if element is found
 * Retruns true if element isn't found
 **/
-bool lookup(map m, const char *key, mapNode **ptr);
+bool lookup(map m, char *key, mapNode **ptr);
 
 /**
 * Print n struct items if 0 print all elements
@@ -72,13 +72,13 @@ bool isEmptyMap(map m);
 // --------------------------VECTOR--------------------------------
 void clearVector(vector *v);
 vector constructVector(void);
-void putFront(vector *v, const char *value);
-void putBack(vector *v, const char *value);
-const char *getFront(vector *v);
-const char *getBack(vector *v);
+void putFront(vector *v, char *value);
+void putBack(vector *v, char *value);
+char *getFront(vector *v);
+char *getBack(vector *v);
 bool isEmptyVector(vector v);
-const char *peekFront(vector v);
-const char *peekBack(vector v);
+char *peekFront(vector v);
+char *peekBack(vector v);
 void printVector(vector v);
-bool contains(vector v, const char *value);
+bool contains(vector v, char *value);
 int getTotalLengthSize(vector v);

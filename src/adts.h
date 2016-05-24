@@ -17,7 +17,7 @@ map constructMap(void) {
   return m;
 }
 
-uint32_t *get(map m, const char *key) {
+uint32_t *get(map m, char *key) {
   mapNode *ptr = NULL;
 
   return lookup(m, key, &ptr) ? &(ptr->value) : NULL;
@@ -27,7 +27,7 @@ bool isEmptyMap(map m) {
   return !m.size;
 }
 
-void put(map *m, const char *key, uint32_t value) {
+void put(map *m, char *key, uint32_t value) {
   mapNode *ptr = NULL;
   if(lookup(*m, key, &ptr)) {
     // if found
@@ -49,7 +49,7 @@ void put(map *m, const char *key, uint32_t value) {
   }
 }
 
-bool lookup(map m, const char *key, mapNode **ptr) {
+bool lookup(map m, char *key, mapNode **ptr) {
   *ptr = m.head;
   while (m.head) {
     *ptr = m.head;
@@ -86,7 +86,7 @@ vector constructVector(void) {
   return v;
 }
 
-void putFront(vector *v, const char *value) {
+void putFront(vector *v, char *value) {
   vectorNode *pNv = malloc(sizeof(vectorNode));
   pNv->previous = NULL;
   pNv->value = value;
@@ -103,7 +103,7 @@ void putFront(vector *v, const char *value) {
   (v->size)++;
 }
 
-void putBack(vector *v, const char *value) {
+void putBack(vector *v, char *value) {
   vectorNode *pNv = malloc(sizeof(vectorNode));
   pNv->previous = NULL;
   pNv->value = value;
@@ -120,7 +120,7 @@ void putBack(vector *v, const char *value) {
   (v->size)++;
 }
 
-const char *peekFront(vector v) {
+char *peekFront(vector v) {
   if (isEmptyVector(v)) {
     return NULL;
   }
@@ -128,7 +128,7 @@ const char *peekFront(vector v) {
   return v.first->value;
 }
 
-const char *peekBack(vector v) {
+char *peekBack(vector v) {
   if (isEmptyVector(v)) {
     return NULL;
   }
@@ -136,12 +136,12 @@ const char *peekBack(vector v) {
   return v.last->value;
 }
 
-const char *getFront(vector *v) {
+char *getFront(vector *v) {
   if (isEmptyVector(*v)) {
     return NULL;
   }
 
-  const char *ret = peekFront(*v);
+  char *ret = peekFront(*v);
 
   // remove first node and free memory
   vectorNode *removedNode = v->first;
@@ -158,12 +158,12 @@ const char *getFront(vector *v) {
   return ret;
 }
 
-const char *getBack(vector *v) {
+char *getBack(vector *v) {
   if (isEmptyVector(*v)) {
     return NULL;
   }
 
-  const char *ret = peekFront(*v);
+  char *ret = peekFront(*v);
   // remove last node and free memory
   vectorNode *removedNode = v->last;
   v->last = removedNode->previous;
@@ -195,7 +195,7 @@ void printVector(vector v) {
   puts("");
 }
 
-bool contains(vector v, const char *value) {
+bool contains(vector v, char *value) {
   vectorNode *current = v.first;
   while (current) {
     if (!strcmp(current->value, value)) {

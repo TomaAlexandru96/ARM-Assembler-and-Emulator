@@ -77,9 +77,10 @@ int main(int argc, char **argv) {
   // if we have compile erros stop and print errors
   if (!isEmptyVector(errorVector)) {
     while (!isEmptyVector(errorVector)) {
-      fprintf(stderr, "%s\n", getFront(&errorVector));
+      char *error = getFront(&errorVector);
+      fprintf(stderr, "%s\n", error);
+      free(error);
     }
-
     freeAll();
     clearVector(&errorVector);
     clearMap(&labelMapping);
@@ -118,7 +119,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
     while (!isEmptyVector(tokens)) {
-      char *token = (char *) getFront(&tokens);
+      char *token = getFront(&tokens);
       if (getType(token) == LABEL) {
         token[strlen(token) - 1] = '\0';
         if (get(*labelMapping, token) || contains(currentLabels, token)) {
@@ -134,6 +135,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
         // map all current unmapped labels
         // to this current memmory location
         // and advance memory
+        free(token);
         while (!isEmptyVector(currentLabels)) {
           // map all labels to current memorry location
           put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
@@ -166,7 +168,7 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
     vector tokens = tokenise(buffer, DELIMITERS);
     char *lineNo = uintToString(ln);
     while (!isEmptyVector(tokens)) {
-      char *token = (char *) peekFront(tokens);
+      char *token = peekFront(tokens);
       if (getType(token) == INSTRUCTION) {
         // if there is a valid isntruction decode it and increase
         // instruction counter
@@ -175,12 +177,13 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
-        getFront(&tokens);
+        token = getFront(&tokens);
       } else {
         // throw error because instruction is undefined
         throwUndeifinedError(token, errorVector, lineNo);
-        getFront(&tokens);
+        token = getFront(&tokens);
       }
+      free(token);
     }
     free(lineNo);
     ln++;
@@ -377,9 +380,9 @@ void printBinary(uint32_t nr) {
 // ----------------------ERRORS--------------------------------
 void throwUndeifinedError(char *name, vector *errorVector, char *ln) {
   char *error = malloc(200);
-  strcat(error, "[");
+  strcpy(error, "[");
   strcat(error, ln);
-  strcat(error, "] Undeifned instruction ");
+  strcat(error, "] Undefined instruction ");
   strcat(error, name);
   strcat(error, ".");
   putBack(errorVector, error);
@@ -387,7 +390,7 @@ void throwUndeifinedError(char *name, vector *errorVector, char *ln) {
 
 void throwLabelError(char *name, vector *errorVector, char *ln) {
   char *error = malloc(200);
-  strcat(error, "[");
+  strcpy(error, "[");
   strcat(error, ln);
   strcat(error, "] Multiple definitions of the same label: ");
   strcat(error, name);
@@ -400,7 +403,7 @@ void throwExpressionError(vector *errorVector, char *ln) {
 
 void throwExpressionMissingError(char *ins, vector *errorVector, char *ln) {
   char *error = malloc(200);
-  strcat(error, "[");
+  strcpy(error, "[");
   strcat(error, ln);
   strcat(error, "] The expression is missing from the ");
   strcat(error, ins);
