@@ -113,6 +113,20 @@ int getRsMul(int instruction);
 
 int getRmMul(int instruction);
 
+int getRdSingle(int instruction);
+
+int getBaseRegister(int Rn, int offset, int U);
+
+int getISingle(int instruction);
+
+int getPBit(int instruction);
+
+int getUBit(int instruction);
+
+int getOffsetDataTransfer(int instruction);
+
+int getLBit(int instruction);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -127,7 +141,7 @@ int main(int argc, char **argv) {
   printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
   printf("%s\n", "I finished procCycle");
-  printf("%.8x\n", convertToLittleEndian(0xdeadbeef));
+  printf("0x%.8x\n", 255 << 31);
   return EXIT_SUCCESS;
 }
 
@@ -208,16 +222,20 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
                       auxResultArithmeticOps, carry, S, resultAllZeros, opcode);
    } else {
      int shift = getShift(instruction);
+     printf("shift = %d\n", shift);
      int Rm = getRm(instruction);
+     printf("Rm = %d\n", Rm);
      int shiftType = getShiftType(shift); //2 bits (UX to 32)
+     printf("shift type = %d\n", shiftType);
      int highBitRm = getMSbit(pState->regs[Rm]);
      if(getLSbit(shift)) {
        //register
        fprintf(stderr, "%s\n", "Optional case shift register");
      } else {
        //integer
-       int maskInteger = 0xF0;
-       int shiftValueInteger = (shift & maskInteger) >> 4;
+       int maskInteger = 0xF8;
+       int shiftValueInteger = (shift & maskInteger) >> 3;
+       printf("shift by value = %d\n", shiftValueInteger);
        int contentsRm = pState->regs[Rm];
        int operand2ThroughShifter = -1;
        switch(shiftType) {
@@ -308,9 +326,7 @@ void executeOperation(proc_state_t *pState, int Rdest,
               //Set CPSR bits if(S)
              break;
     case 0xA: auxResultArithmeticOps = pState->regs[Rn] - operand2;
-   /*CMP*/    carry = getAdditionCarry(pState->regs[Rn],
-                                       (!(operand2) + 1)) == 1 ?
-                                       0 : 1;
+   /*CMP*/    carry = getMSbit(auxResultArithmeticOps) ? 0 : 1;
               resultAllZeros = isZero(auxResultArithmeticOps);
              //Set CPSR bits if(S)
              break;
@@ -457,25 +473,165 @@ int getRdest(int instruction) {
 
 //--------------Execute SDataTransferI------------------------------------------
 void executeSDataTransfer(int instruction, proc_state_t *pState) {
+  int I = getISingle(instruction);
+  int L = getLBit(instruction);
+  int P = getPBit(instruction);
+  int U = getUBit(instruction);
+  int Rn = getRn(instruction);
+  int Rd = getRdSingle(instruction);
+  int offset = -1;
+  if(I) {
+    //Offset interpreted as a shifted register
 
+    //printf("%s\n", "Doing data transfer where offset is a register");
+    int shift = getShift(instruction);
+    //printf("shift = %d\n", shift);
+    int Rm = getRm(instruction);
+    //printf("Rm = %d\n", Rm);
+    int shiftType = getShiftType(shift); //2 bits (UX to 32)
+    //printf("shift type = %d\n", shiftType);
+    int highBitRm = getMSbit(pState->regs[Rm]);
+    if(getLSbit(shift)) {
+      //register
+      fprintf(stderr, "%s\n", "Optional case shift register");
+    } else {
+      int maskInteger = 0xF8;
+      int shiftValueInteger = (shift & maskInteger) >> 3;
+      int contentsRm = pState->regs[Rm];
+      int operand2ThroughShifter = -1;
+      switch(shiftType) {
+        case 0x0: operand2ThroughShifter = contentsRm << shiftValueInteger;
+                  break;
+        case 0x1: operand2ThroughShifter = contentsRm >> shiftValueInteger;
+                  break;
+        case 0x2: operand2ThroughShifter = arShift(contentsRm,
+                                          shiftValueInteger, highBitRm);
+                  break;
+        case 0x3: operand2ThroughShifter = rightRotate(pState->regs[Rm],
+                                                    shiftValueInteger);
+                  break;
+      }
+      assert(operand2ThroughShifter != -1);
+      /*
+       *operand2ThroughShifter is the value to be added/subtracted to/from Rn
+       */
+       offset = operand2ThroughShifter;
+    }
+  } else {
+    //Offset interpreted as 12-bit immediate value
+    offset = getOffsetDataTransfer(instruction);
+  }
+
+  int address = -1;
+  if(L) {
+    //Word loaded from memory into register
+    //regs[Rd] = Mem[address]
+     if(P) {
+       //Pre-indexing
+       address = getBaseRegister(Rn, offset, U);
+       //Now transfer data
+       pState->regs[Rd] = pState->memory[address];
+     } else {
+       //Post-indexing
+       //Transfer data
+       pState->regs[Rd] = pState->memory[address];
+       //Then set base register
+       pState->regs[Rn] = address;
+     }
+
+  } else {
+    //Word stored in memory
+    //Mem[address] = regs[Rd]
+     if(P) {
+       //Pre-indexing
+       address = getBaseRegister(Rn, offset, U);
+       //Now transfer data
+       pState->memory[address] = pState->regs[Rd];
+     } else {
+       //Post-indexing
+       //Transfer data
+       pState->memory[address] = pState->regs[Rd];
+       //Then set base register
+       pState->regs[Rn] = address;
+     }
+  }
 }
 
+int getBaseRegister(int Rn, int offset, int U) {
+  if(U) {
+    return Rn + offset;
+  } else {
+    return Rn - offset;
+  }
+}
+
+
+int getOffsetDataTransfer(int instruction) {
+  int mask0To11 = 0xFFF;
+  return instruction & mask0To11;
+}
+
+
+
+int getISingle(int instruction) {
+  // same as I bit for Data Processing
+  return getIBit(instruction);
+}
+
+int getPBit(int instruction) {
+  int mask24 = 0x1000000;
+  return (instruction & mask24) >> 24;
+}
+
+int getUBit(int instruction) {
+  int mask23 = 0x800000;
+  return (instruction & mask23) >> 23;
+}
+
+int getLBit(int instruction) {
+  int mask20 = 0x100000;
+  return (instruction & mask20) >> 20;
+}
+
+int getRnSingle(int instruction) {
+  // same as Rn for Data Processing
+  return getRn(instruction);
+}
+
+int getRdSingle(int instruction) {
+  // same as Rd bit for Data Processing
+  return getRdest(instruction);
+}
 
 //------------------------------------------------------------------------------
 
 //--------------Execute MultiplyI-----------------------------------------------
 void executeMultiply(int instruction, proc_state_t *pState) {
-/*  int A = getABit(instruction);
+  int A = getABit(instruction);
   int S = getSBitMul(instruction);
   int Rd = getRdMul(instruction);
   int Rn = getRnMul(instruction);
   int Rs = getRsMul(instruction);
   int Rm = getRmMul(instruction);
-*/
+  int auxResultMult = -1;
+  assert(Rd != Rm);
+  if(A) {
+    pState->regs[Rd] = (pState->regs[Rm] * pState->regs[Rs]) + pState->regs[Rn];
+  } else {
+    pState->regs[Rd] = pState->regs[Rm] * pState->regs[Rs];
+  }
+  auxResultMult = pState->regs[Rd];
+  if(S) {
+    //Set NEG and ZER flags
+    pState->NEG = getMSbit(auxResultMult);
+    pState->ZER = auxResultMult ? 0 : 1;
+    pState->regs[INDEX_CPSR] = (pState->NEG << 31) | (pState->ZER << 30) |
+                               (pState->CRY << 29) | (pState->OVF << 28);
+  }
 }
 
 int getABit(int instruction) {
-  int maskA21 = 0x2000000;
+  int maskA21 = 0x200000;
   return (instruction & maskA21) >> 21;
 }
 
@@ -485,6 +641,7 @@ int getSBitMul(int instruction) {
 }
 
 int getRdMul(int instruction) {
+  //reuse function getRn from DataProcessingI
   return getRn(instruction);
 }
 
@@ -493,13 +650,13 @@ int getRnMul(int instruction) {
 }
 
 int getRsMul(int instruction) {
-  int mask11to8 = 0xF00;
-  return (instruction & mask11to8) >> 8;
+  int mask8To11 = 0xF00;
+  return (instruction & mask8To11) >> 8;
 }
 
 int getRmMul(int instruction) {
-  int mask0to3 = 0xF;
-  return (instruction & mask0to3);
+  int mask0To3 = 0xF;
+  return (instruction & mask0To3);
 }
 
 //------------------------------------------------------------------------------
