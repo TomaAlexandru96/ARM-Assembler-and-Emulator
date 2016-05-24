@@ -66,6 +66,7 @@ int main(int argc, char **argv) {
   * Make second pass now and replace all labels with their mapping
   * also decode all instructions and trow errors if any
   **/
+
   uint32_t instructions[instructionsNumber];
   rewind(input); // reset file pointer to the beginning of the file
   secondPass(linesNumber, instructions,
@@ -83,6 +84,9 @@ int main(int argc, char **argv) {
   fclose(output);
 
   // DEBUG ZONE
+  char string[] = " Me  ssage\n";
+  vector v = tokenise(string, DELIMITERS);
+  printVector(v);
   // DEBUG ZONE
 
   return EXIT_SUCCESS;
@@ -110,6 +114,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
           // if this label already exists in the mapping this means
           // that we have multiple definitions of the same label
           // therefore throw an error message
+
           throwLabelError(token, errorMessage, lineNumber);
         }
         putBack(&currentLabels, token);
@@ -158,7 +163,7 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         // instruction counter
         instructions[PC] = decode(*pType, &tokens,
                                   labelMapping, errorMessage, ln);
-        printBinary(instructions[PC]);
+        // printBinary(instructions[PC]);
         PC++;
       } else if (!isLabel(token)) {
         // throw error because instruction is undefined
@@ -214,12 +219,14 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
   uint32_t *mem;
   uint32_t target;
 
-  char *expression = (char *) getFront(tokens);
+  char *expression = (char *) peekFront(*tokens);
 
   if (!expression) {
     throwExpressionMissingError(branch, errorMessage, ln);
     return -1;
   }
+
+  getFront(tokens);
 
   if ((mem = get(labelMapping, expression))) {
     // we have a mapping
@@ -261,12 +268,14 @@ vector tokenise(char *start, char *delimiters) {
     if (strchr(delimiters, start[i])) {
       // found delimiter add token to vector
       tokenSize--;
-      // make sapce for token string
-      char *token = malloc((tokenSize + 1) * sizeof(char));
-      strncpy(token, start + i - tokenSize, tokenSize);
-      token[tokenSize] = '\0';
-      putBack(&tokens, token);
-      tokenSize = 0;
+      if (tokenSize) {
+        // make sapce for token string
+        char *token = malloc((tokenSize + 1) * sizeof(char));
+        strncpy(token, start + i - tokenSize, tokenSize);
+        token[tokenSize] = '\0';
+        putBack(&tokens, token);
+        tokenSize = 0;
+      }
     }
   }
 
@@ -340,7 +349,8 @@ void printBinary(uint32_t nr) {
 void throwUndeifinedError(char* name, char errorMessage[], uint32_t ln) {
   char error[] = "[";
   strcat(error, uintToString(ln));
-  // strcat(error, "] Undefined instruction: ");
+  char message[] = "] Undefined instruction: ";
+  strcat(error, message);
   strcat(error, name);
   strcat(error, "\n");
   strcat(errorMessage, error);
@@ -349,7 +359,8 @@ void throwUndeifinedError(char* name, char errorMessage[], uint32_t ln) {
 void throwLabelError(char *name, char errorMessage[], uint32_t ln) {
   char error[] = "[";
   strcat(error, uintToString(ln));
-  // strcat(error, "] Multiple definitions of the same label: ");
+  char message[] = "] Multiple definitions of the same label: ";
+  strcat(error, message);
   strcat(error, name);
   strcat(error, "\n");
   strcat(errorMessage, error);
@@ -362,7 +373,8 @@ void throwExpressionError(char errorMessage[], uint32_t ln) {
 void throwExpressionMissingError(char *ins, char errorMessage[], uint32_t ln) {
   char error[] = "[";
   strcat(error, uintToString(ln));
-  // strcat(error, "] The expression is missing from the");
+  char message[] = "] The expression is missing from the ";
+  strcat(error, message);
   strcat(error, ins);
   strcat(error, " instruction.\n");
   strcat(errorMessage, error);

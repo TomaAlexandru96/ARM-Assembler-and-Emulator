@@ -121,19 +121,25 @@ void putBack(vector *v, const char *value) {
 }
 
 const char *peekFront(vector v) {
-  assert(!isEmptyVector(v));
+  if (isEmptyVector(v)) {
+    return NULL;
+  }
 
   return v.first->value;
 }
 
 const char *peekBack(vector v) {
-  assert(!isEmptyVector(v));
+  if (isEmptyVector(v)) {
+    return NULL;
+  }
 
   return v.last->value;
 }
 
 const char *getFront(vector *v) {
-  assert(!isEmptyVector(*v));
+  if (isEmptyVector(*v)) {
+    return NULL;
+  }
 
   const char *ret = peekFront(*v);
 
@@ -152,7 +158,9 @@ const char *getFront(vector *v) {
 }
 
 const char *getBack(vector *v) {
-  assert(!isEmptyVector(*v));
+  if (isEmptyVector(*v)) {
+    return NULL;
+  }
 
   const char *ret = peekFront(*v);
   // remove last node and free memory
