@@ -37,6 +37,8 @@ void memoryLoader(FILE *file, proc_state_t *pState);
 
 void printMemory(int memory[]);
 
+int convertToLittleEndian(int instruction);
+
 void printProcessorState(proc_state_t *pState);
 
 void decodeFetched(int instruction, proc_state_t *pState);
@@ -97,6 +99,8 @@ void executeOperation(proc_state_t *pState, int Rdest,
                      int Rn, int operand2, int auxResultArithmeticOps,
                      int carry, int S, bool resultAllZeros, int opcode);
 
+int getOffset(int instruction);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -111,7 +115,7 @@ int main(int argc, char **argv) {
   printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
   printf("%s\n", "I finished procCycle");
-
+  printf("%.8x\n", convertToLittleEndian(0xdeadbeef));
   return EXIT_SUCCESS;
 }
 
@@ -137,6 +141,7 @@ void printProcessorState(proc_state_t *pState) {
     }
   }
   printf("%s\n", "~~~~~End Processor state:~~~~~");
+  printMemory(pState->memory);
 }
 
 
@@ -457,7 +462,25 @@ void executeMultiply(int instruction, proc_state_t *pState) {
 
 //--------------Execute Branch--------------------------------------------------
 void executeBranch(int instruction, proc_state_t *pState) {
+    int offset = getOffset(instruction);
+    offset = offset << 2;
+    //Offset is a 32-bit value having bits[25...31] equal 0
+    int maskBit25 = 0x2000000;
+    int signBitPosition = 25;
+    int signBit = (offset & maskBit25) >> signBitPosition;
+    int mask26To31 = 0xFC000000;
+    if(signBit) {
+      offset = offset | mask26To31;
+    }
+    // otherwise the offset is unchanged
+    int PCvalue = pState-> PC;
+    pState->PC = PCvalue + offset;
+    pState->regs[INDEX_PC] = pState->PC;
+}
 
+int getOffset(int instruction) {
+  int maskOffset = 0xFFFFFF;
+  return instruction & maskOffset;
 }
 
 //------------------------------------------------------------------------------
@@ -566,25 +589,12 @@ void memoryLoader(FILE *file, proc_state_t *pState) {
 
 }
 
-
 void printMemory(int memory[]) {
-   printf("%s\n", "Memory layout: ");
-   for(int i = 0; i < MEM_SIZE_BYTES; i++) {
-     if(memory[i]) {
-       printf("Mem[%d] = %d\n", i, memory[i]);
-     } else {
-       break;
-     }
-   }
-   printf("%s\n", "");
-}
-
-void printMemoryLittleEndian(int memory[]) {
    printf("%s\n", "Non-zero memory:\n");
    printf("%s\n", "Memory layout LITTLE ENDIAN: ");
-   for(int i = 0; i < MEM_SIZE_BYTES; i++) {
-     if(memory[i]) {
-       printf("%.8x %d\n", i, convertToLittleEndian(memory[i]));
+   for(int i = 0; i < MEM_SIZE_BYTES; i += 4) {
+     if(memory[i / 4]) {
+       printf("0x%.8x: 0x%.8x\n", i, convertToLittleEndian(memory[i / 4]));
      } else {
        break;
      }
@@ -598,5 +608,8 @@ int convertToLittleEndian(int instruction) {
   int maskByte1 = 0xFF00;
   int maskByte2 = 0xFF0000;
   int maskByte3 = 0xFF000000;
-  //TODO
+  return ((instruction >> 24) & maskByte0) |
+         ((instruction >> 8) & maskByte1)  |
+         ((instruction << 8) & maskByte2)  |
+         ((instruction << 24) & maskByte3);
 }
