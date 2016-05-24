@@ -460,7 +460,7 @@ void executeMultiply(int instruction, proc_state_t *pState) {
 void executeBranch(int instruction, proc_state_t *pState, pipeline_t *pipeline){
     int offset = getOffset(instruction);
     offset = offset << 2;
-    
+
     //Offset is a 32-bit value having bits[25...31] equal 0
     int maskBit25 = 0x2000000;
     int signBitPosition = 25;
