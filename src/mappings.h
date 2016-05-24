@@ -25,6 +25,9 @@ map fillConditions(void);
 **/
 void fillAll(void);
 void freeAll(void);
+// --------------------------ENUMS-------------------------------
+typedef enum {INSTRUCTION, LABEL, EXPRESSION, REGISTER, UNDEFINED} typeEnum;
+
 // --------------------GLOBAL VARIABLES--------------------------
 map DATA_OPCODE;
 map ALL_INSTRUCTIONS;
