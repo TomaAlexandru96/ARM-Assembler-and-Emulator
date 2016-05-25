@@ -115,7 +115,7 @@ int getRmMul(int instruction);
 
 int getRdSingle(int instruction);
 
-int getBaseRegister(int Rn, int offset, int U);
+int getBaseRegister(int Rn, int offset, int U, proc_state_t *pState);
 
 int getISingle(int instruction);
 
@@ -141,7 +141,6 @@ int main(int argc, char **argv) {
   printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
   printf("%s\n", "I finished procCycle");
-  printf("0x%.8x\n", 255 << 31);
   return EXIT_SUCCESS;
 }
 
@@ -222,11 +221,8 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
                       auxResultArithmeticOps, carry, S, resultAllZeros, opcode);
    } else {
      int shift = getShift(instruction);
-     printf("shift = %d\n", shift);
      int Rm = getRm(instruction);
-     printf("Rm = %d\n", Rm);
      int shiftType = getShiftType(shift); //2 bits (UX to 32)
-     printf("shift type = %d\n", shiftType);
      int highBitRm = getMSbit(pState->regs[Rm]);
      if(getLSbit(shift)) {
        //register
@@ -235,7 +231,6 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
        //integer
        int maskInteger = 0xF8;
        int shiftValueInteger = (shift & maskInteger) >> 3;
-       printf("shift by value = %d\n", shiftValueInteger);
        int contentsRm = pState->regs[Rm];
        int operand2ThroughShifter = -1;
        switch(shiftType) {
@@ -519,16 +514,20 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
     }
   } else {
     //Offset interpreted as 12-bit immediate value
-    offset = getOffsetDataTransfer(instruction);
+    offset = (uint32_t) getOffsetDataTransfer(instruction);
+
+       printf("offset is now = %d\n", offset);
   }
 
   int address = -1;
   if(L) {
+    printf("%s\n", "XXXXXXX");
     //Word loaded from memory into register
     //regs[Rd] = Mem[address]
      if(P) {
        //Pre-indexing
-       address = getBaseRegister(Rn, offset, U);
+       address = getBaseRegister(Rn, offset, U, pState);
+       printf("Address is now %d\n", address);
        //Now transfer data
        pState->regs[Rd] = pState->memory[address];
      } else {
@@ -544,7 +543,7 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
     //Mem[address] = regs[Rd]
      if(P) {
        //Pre-indexing
-       address = getBaseRegister(Rn, offset, U);
+       address = getBaseRegister(Rn, offset, U, pState);
        //Now transfer data
        pState->memory[address] = pState->regs[Rd];
      } else {
@@ -557,16 +556,17 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
   }
 }
 
-int getBaseRegister(int Rn, int offset, int U) {
+int getBaseRegister(int Rn, int offset, int U, proc_state_t *pState) {
   if(U) {
-    return Rn + offset;
+    return pState->regs[Rn] + offset;
   } else {
-    return Rn - offset;
+    return pState->regs[Rn] - offset;
   }
 }
 
 
 int getOffsetDataTransfer(int instruction) {
+  printf("I am getting the offset now from instruction 0x%.8x\n", instruction);
   int mask0To11 = 0xFFF;
   return instruction & mask0To11;
 }
