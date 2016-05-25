@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <assert.h>
+#include <stdlib.h>
 
 #define MEM_SIZE_BYTES 16384 // 2 ^ 14 instruction addresses
 #define NUMBER_REGS 17
@@ -11,6 +12,11 @@
 #define INDEX_SP 13
 #define INDEX_LR 14
 #define INT_BITS 32
+#define MASK_BYTE0_BE 0xFF000000
+#define MASK_BYTE1_BE 0xFF0000
+#define MASK_BYTE2_BE 0xFF00
+#define MASK_BYTE3_BE 0xFF
+
 /*-------------TypeDefinitions------------------*/
 typedef struct proc_state proc_state_t;
 
@@ -115,7 +121,7 @@ int getRmMul(int instruction);
 
 int getRdSingle(int instruction);
 
-int getBaseRegister(int Rn, int offset, int U, proc_state_t *pState);
+int getEffectiveAddress(int Rn, int offset, int U, proc_state_t *pState);
 
 int getISingle(int instruction);
 
@@ -127,6 +133,16 @@ int getOffsetDataTransfer(int instruction);
 
 int getLBit(int instruction);
 
+int getMemoryContentsAtAddress(proc_state_t *pState, int address);
+
+int getByteBigEndian(int content, int index);
+
+int getNumberOfDecimalDigits(int number);
+
+int setByte(int word, int index, int newByte);
+
+void writeToMemory(int word, int startByteAddress, proc_state_t *pState);
+
 /*----------------------------------------------*/
 int main(int argc, char **argv) {
   if(!argv[1]) {
@@ -136,37 +152,56 @@ int main(int argc, char **argv) {
   FILE *file = fopen(argv[1], "rb");
   proc_state_t pState;
   memoryLoader(file, &pState);
-  printf("%s\n", "State of the memory before procCycle");
-  printMemory(pState.memory);
-  printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
+  //printf("%s\n", "State of the memory before procCycle");
+  //printMemory(pState.memory);
+  //printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
-  printf("%s\n", "I finished procCycle");
+  //printf("%s\n", "I finished procCycle");
+
   return EXIT_SUCCESS;
 }
 
 void printProcessorState(proc_state_t *pState) {
-  printf("%s\n", "~~~~~Processor state:~~~~~");
+  /*printf("%s\n", "~~~~~Processor state:~~~~~");
   printf("NEG = %d\n", pState->NEG);
   printf("ZER = %d\n", pState->ZER);
   printf("CRY = %d\n", pState->CRY);
   printf("OVF = %d\n", pState->OVF);
-  printf("PC  = %d\n", pState->PC);
+  printf("PC  = %d\n", pState->PC);*/
   printf("%s\n", "Registers:");
   int content;
   for(int i = 0; i < NUMBER_REGS; i++) {
     content = (pState->regs)[i];
     if(i != INDEX_LR && i != INDEX_SP) {
      if(i == INDEX_PC) {
-       printf("PC   :%10d (0x%.8x)\n", content, content);
+       printf("PC  :%11d (0x%.8x)\n", content, content);
      } else if(i == INDEX_CPSR) {
-       printf("CPSR :%10d (0x%.8x)\n", content, content);
+       if(getMSbit(pState->regs[i]) == -1) {
+          printf("CPSR: %11d (0x%.8x)\n", content, content);
+       } else {
+          printf("CPSR:%11d (0x%.8x)\n", content, content);
+       }
      } else {
-       printf("$%2d  :%10d (0x%.8x)\n", i, content, content);
+       if(getNumberOfDecimalDigits(pState->regs[i]) >= 10 &&
+         getMSbit(pState->regs[i]) == -1) {
+          printf("$%-3d: %11d (0x%.8x)\n", i, content, content);
+       } else {
+          printf("$%-3d:%11d (0x%.8x)\n", i, content, content);
+       }
      }
     }
   }
-  printf("%s\n", "~~~~~End Processor state:~~~~~");
+  //printf("%s\n", "~~~~~End Processor state:~~~~~");
   printMemory(pState->memory);
+}
+
+int getNumberOfDecimalDigits(int number) {
+  int counter = 0;
+  while (number) {
+    number /= 10;
+    counter++;
+  }
+  return counter;
 }
 
 
@@ -178,17 +213,17 @@ void printPipeline(pipeline_t *pipeline) {
 
 
 void procCycle(proc_state_t *pState) {
-  printf("%s\n", "I am in procCycle");
+  //printf("%s\n", "I am in procCycle");
   pipeline_t pipeline = {-1, -1};
   bool finished = false;
-  printf("%s\n", "Before loop");
-  printProcessorState(pState);
+  //printf("%s\n", "Before loop");
+  //printProcessorState(pState);
+  //printf("%s\n", "-----------------------------------------------------------");
   // Initialisation
   pState->PC = 4;
   pState->regs[INDEX_PC] = pState->PC;
   // PC is stored twice in pState(regs array and separate field)
   pipeline.fetched = pState->memory[0];
-
   while (!finished) {
     pState->PC += 4;
     pState->regs[INDEX_PC] = pState->PC;
@@ -199,7 +234,7 @@ void procCycle(proc_state_t *pState) {
     }
     finished = !pipeline.decoded;
   }
-  printf("%s\n", "After loop");
+  //printf("%s\n", "After loop");
   printProcessorState(pState);
 }
 //--------------Execute DataProcessingI----------------------------------------
@@ -516,26 +551,30 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
     //Offset interpreted as 12-bit immediate value
     offset = (uint32_t) getOffsetDataTransfer(instruction);
 
-       printf("offset is now = %d\n", offset);
+
   }
 
   int address = -1;
   if(L) {
-    printf("%s\n", "XXXXXXX");
     //Word loaded from memory into register
     //regs[Rd] = Mem[address]
      if(P) {
        //Pre-indexing
-       address = getBaseRegister(Rn, offset, U, pState);
-       printf("Address is now %d\n", address);
+       address = getEffectiveAddress(Rn, offset, U, pState);
        //Now transfer data
-       pState->regs[Rd] = pState->memory[address];
+       if(address > (MEM_SIZE_BYTES - 4)) {
+         printf("Error: Out of bounds memory access at address 0x%.8x\n",
+                address);
+       } else {
+          pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
+       }
      } else {
        //Post-indexing
+       address = pState->regs[Rn];
        //Transfer data
-       pState->regs[Rd] = pState->memory[address];
+       pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
        //Then set base register
-       pState->regs[Rn] = address;
+       pState->regs[Rn] = getEffectiveAddress(Rn,offset, U, pState);
      }
 
   } else {
@@ -543,30 +582,88 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
     //Mem[address] = regs[Rd]
      if(P) {
        //Pre-indexing
-       address = getBaseRegister(Rn, offset, U, pState);
+       address = getEffectiveAddress(Rn, offset, U, pState);
        //Now transfer data
-       pState->memory[address] = pState->regs[Rd];
+       //pState->memory[address / 4] = pState->regs[Rd];
+       writeToMemory(pState->regs[Rd], address, pState);
      } else {
        //Post-indexing
        //Transfer data
-       pState->memory[address] = pState->regs[Rd];
+       address = pState->regs[Rn];
+       writeToMemory(pState->regs[Rd], address, pState);
+       //pState->memory[address / 4] = pState->regs[Rd];
        //Then set base register
-       pState->regs[Rn] = address;
+       pState->regs[Rn] = getEffectiveAddress(Rn, offset, U, pState);
      }
   }
 }
 
-int getBaseRegister(int Rn, int offset, int U, proc_state_t *pState) {
+void writeToMemory(int word, int startByteAddress, proc_state_t *pState) {
+  //word written to memory starting from startByteAddress
+  int byte[4] = {getByteBigEndian(word, 3),
+                 getByteBigEndian(word, 2),
+                 getByteBigEndian(word, 1),
+                 getByteBigEndian(word, 0)};
+  //Got every byte of the number to be written to memory
+  for(int i = 0; i < 4; i++) {
+    pState->memory[startByteAddress / 4] =
+    setByte(pState->memory[startByteAddress / 4],
+            3 - startByteAddress % 4,
+            byte[i]);
+            startByteAddress++;
+  }
+}
+
+int setByte(int word, int index, int newByte) {
+  // word indexed as in big endian {0, 1, 2, 3}
+  switch (index) {
+    case 0: return (0x00FFFFFF & word) | (newByte << 24);
+    case 1: return (0xFF00FFFF & word) | (newByte << 16);
+    case 2: return (0xFFFF00FF & word) | (newByte << 8);
+    case 3: return (0XFFFFFF00 & word) | newByte;
+    default: return -1;
+  }
+}
+
+
+int getMemoryContentsAtAddress(proc_state_t *pState, int address) {
+  int byteAddress = address;
+  int byte0 = getByteBigEndian(pState->memory[byteAddress / 4],
+                               3 - (byteAddress % 4));
+  byteAddress++;
+  int byte1 = getByteBigEndian(pState->memory[byteAddress / 4],
+                               3 - (byteAddress % 4));
+  byteAddress++;
+  int byte2 = getByteBigEndian(pState->memory[byteAddress / 4],
+                               3 - (byteAddress % 4));
+  byteAddress++;
+  int byte3 = getByteBigEndian(pState->memory[byteAddress / 4],
+                               3 - (byteAddress % 4));
+  byteAddress++;
+  return byte0 | (byte1 << 8) | (byte2 << 16) | (byte3 << 24);
+}
+
+int getByteBigEndian(int content, int index) {
+  switch (index) {
+    case 0: return (content & 0xFF000000) >> 24; // MASK_BYTE0_BE
+    case 1: return (content & 0xFF0000) >> 16;   // MASK_BYTE1_BE
+    case 2: return (content & 0xFF00) >> 8;    //MASK_BYTE2_BE
+    case 3: return (content & 0xFF);        //MASK_BYTE3_BE
+    default: return -1;
+  }
+}
+
+
+int getEffectiveAddress(int Rn, int offset, int U, proc_state_t *pState) {
   if(U) {
-    return pState->regs[Rn] + offset;
+    return (pState->regs[Rn] + offset);
   } else {
-    return pState->regs[Rn] - offset;
+    return (pState->regs[Rn] - offset);
   }
 }
 
 
 int getOffsetDataTransfer(int instruction) {
-  printf("I am getting the offset now from instruction 0x%.8x\n", instruction);
   int mask0To11 = 0xFFF;
   return instruction & mask0To11;
 }
@@ -616,9 +713,10 @@ void executeMultiply(int instruction, proc_state_t *pState) {
   int auxResultMult = -1;
   assert(Rd != Rm);
   if(A) {
-    pState->regs[Rd] = (pState->regs[Rm] * pState->regs[Rs]) + pState->regs[Rn];
+    pState->regs[Rd] = (int) (pState->regs[Rm] * pState->regs[Rs]) +
+                                                 pState->regs[Rn];
   } else {
-    pState->regs[Rd] = pState->regs[Rm] * pState->regs[Rs];
+    pState->regs[Rd] = (int) pState->regs[Rm] * pState->regs[Rs];
   }
   auxResultMult = pState->regs[Rd];
   if(S) {
@@ -718,30 +816,30 @@ uint8_t getCond(int instruction) {
 
 //-----------------------------------------------------------------------------
 void decodeFetched(int instruction, proc_state_t *pState, pipeline_t *pipeline){
-  printf("I am decoding %x\n", instruction);
+  //printf("I am decoding %x\n", instruction);
    int idBits = extractIDbits(instruction);
    if(idBits == 1) {
      //check if Cond satisfied before executing
-       printf("%s\n", "This is data transfer instruction");
+      /* printf("%s\n", "This is data transfer instruction");*/
        if(shouldExecute(instruction, pState)) {
         executeSDataTransfer(instruction, pState);
        }
    } else if(idBits == 2) {
      //check if Cond satisfied before executing
-      printf("%s\n", "This is branch instruction");
+      /*printf("%s\n", "This is branch instruction");*/
       if(shouldExecute(instruction, pState)) {
         executeBranch(instruction, pState, pipeline);
       }
    } else if(!idBits) {
       //Choose between MultiplyI and DataProcessingI
        if(isMult(instruction)) {
-         printf("%s\n", "This is multiply instruction");
+         /*printf("%s\n", "This is multiply instruction");*/
          if(shouldExecute(instruction, pState)) {
            executeMultiply(instruction, pState);
          }
        } else {
          //Then check if Cond satisfied before executing
-         printf("%s\n", "This is data processing instruction");
+         /*printf("%s\n", "This is data processing instruction");*/
          if(shouldExecute(instruction, pState)) {
           executeDataProcessing(instruction, pState);
          }
@@ -749,6 +847,7 @@ void decodeFetched(int instruction, proc_state_t *pState, pipeline_t *pipeline){
    } else {
      printf("%s\n", "Should not get here");
      fprintf(stderr, "%s\n", "Invalid instruction executing.");
+     exit(EXIT_FAILURE);
    }
 
   /*when executing: if Cond succeeds or is al(always), instruction
@@ -788,21 +887,18 @@ void memoryLoader(FILE *file, proc_state_t *pState) {
   fclose(file);
   //load every instruction in binary file into memory
   //Instructions stored in Big Endian, ready to be decoded
-  printMemory(pState->memory);
+  /*printMemory(pState->memory);*/
 
 }
 
 void printMemory(int memory[]) {
-   printf("%s\n", "Non-zero memory:\n");
-   printf("%s\n", "Memory layout LITTLE ENDIAN: ");
+   printf("%s", "Non-zero memory:\n");
+   /*printf("%s\n", "Memory layout LITTLE ENDIAN: ");*/
    for(int i = 0; i < MEM_SIZE_BYTES; i += 4) {
      if(memory[i / 4]) {
        printf("0x%.8x: 0x%.8x\n", i, convertToLittleEndian(memory[i / 4]));
-     } else {
-       break;
      }
    }
-   printf("%s\n", "");
 }
 
 
