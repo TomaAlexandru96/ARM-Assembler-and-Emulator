@@ -28,7 +28,7 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
                       vector *errorVector, char *ln);
 void throwUndeifinedError(char *name, vector *errorVector, char *ln);
 void throwLabelError(char *name, vector *errorVector, char *ln);
-void throwExpressionError(vector *errorVector, char *ln);
+void throwExpressionError(char *expression, vector *errorVector, char *ln);
 void throwExpressionMissingError(char *ins, vector *errorVector, char *ln);
 bool isExpression(char *token);
 bool isInstruction(char *token);
@@ -211,8 +211,20 @@ uint32_t decode(vector *tokens,
 
 uint32_t decodeDataProcessing(vector *tokens,
                         vector *errorVector, char *ln) {
-  free(getFront(tokens));
-  return 0;
+  char *instruction = getFront(tokens);
+  uint32_t ins = 0;
+
+  setCond(&ins, ALWAYS_CONDITION);
+
+  if (!get(DATA_TYPE, instruction)) {
+    // we have first type of instruction
+    // with syntax <opcode> Rd, Rn, <Operand2>
+  } else {
+    // we have second type of instruction
+    // with syntax <opcode> Rn, <Operand2>
+  }
+
+  return ins;
 }
 
 uint32_t decodeMultiply(vector *tokens,
@@ -229,9 +241,9 @@ uint32_t decodeSingleDataTransfer(vector *tokens,
 
 uint32_t decodeBranch(vector *tokens, map labelMapping,
                         vector *errorVector, char *ln) {
-  char *branch = (char *) getFront(tokens);
+  char *branch = getFront(tokens);
   uint32_t ins = 0xA << 0x18;
-  setCond(&ins, (char *) (branch + 1));
+  setCond(&ins, (branch + 1));
   uint32_t *mem;
   uint32_t target;
 
@@ -249,7 +261,7 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
   } else {
     // we have an offset
     if (getType(expression) != EXPRESSION) {
-      throwExpressionError(errorVector, ln);
+      throwExpressionError(expression, errorVector, ln);
       free(branch);
       return -1;
     }
@@ -450,7 +462,14 @@ void throwLabelError(char *name, vector *errorVector, char *ln) {
   putBack(errorVector, error);
 }
 
-void throwExpressionError(vector *errorVector, char *ln) {
+void throwExpressionError(char *name, vector *errorVector, char *ln) {
+  char *error = malloc(200);
+  strcpy(error, "[");
+  strcat(error, ln);
+  strcat(error, "] The expression ");
+  strcat(error, name);
+  strcat(error, " is invalid.");
+  putBack(errorVector, error);
 }
 
 void throwExpressionMissingError(char *ins, vector *errorVector, char *ln) {

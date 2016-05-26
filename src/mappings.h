@@ -20,6 +20,7 @@ map fillAllInstructions(void);
 * Returns a mapping of conditions names with thier specific code
 **/
 map fillConditions(void);
+map fillDataToType(void);
 /**
 * Fills all mappings
 **/
@@ -32,6 +33,7 @@ typedef enum {INSTRUCTION, LABEL, EXPRESSION, REGISTER, UNDEFINED} typeEnum;
 map DATA_OPCODE;
 map ALL_INSTRUCTIONS;
 map CONDITIONS;
+map DATA_TYPE;
 
 // -------------------FUNCTION DEFINITIONS-----------------------
 map fillDataToOpcode(void) {
@@ -105,14 +107,40 @@ map fillConditions(void) {
   return m;
 }
 
+map fillDataToType(void) {
+  map m = constructMap();
+
+  // instructions that compute results and, eor, sub, rsb, add, orr
+  put(&m, "and", 0);
+  put(&m, "eor", 0);
+  put(&m, "sub", 0);
+  put(&m, "rsb", 0);
+  put(&m, "add", 0);
+  put(&m, "orr", 0);
+
+  // single operand instruction mov
+  put(&m, "mov", 1);
+
+  // Instructions that do not compute results,
+  // but do set the CPSR flags: tst, teq, cmp
+  // same syntax as mov
+  put(&m, "tst", 1);
+  put(&m, "teq", 1);
+  put(&m, "cmp", 1);
+
+  return m;
+}
+
 void fillAll(void) {
   DATA_OPCODE      = fillDataToOpcode();
   ALL_INSTRUCTIONS = fillAllInstructions();
   CONDITIONS       = fillConditions();
+  DATA_TYPE        = fillDataToType();
 }
 
 void freeAll(void) {
   clearMap(&DATA_OPCODE);
   clearMap(&ALL_INSTRUCTIONS);
   clearMap(&CONDITIONS);
+  clearMap(&DATA_TYPE);
 }
