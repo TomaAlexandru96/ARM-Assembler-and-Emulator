@@ -364,10 +364,11 @@ typeEnum getType(char *token) {
 }
 
 uint32_t getExpression(char *exp) {
-  if (strlen(exp) >= 3 && exp[0] == '0' && exp[1] == 'x') {
-    return getHex(exp + 2);
+  assert(getType(exp) == EXPRESSION);
+  if (exp[1] == '0' && exp[2] == 'x') {
+    return getHex(exp + 3);
   } else {
-    return getDec(exp);
+    return getDec(exp + 1);
   }
 }
 
