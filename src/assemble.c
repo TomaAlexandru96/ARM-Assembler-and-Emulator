@@ -33,6 +33,7 @@ void throwExpressionMissingError(char *ins, vector *errorVector, char *ln);
 bool isExpression(char *token);
 bool isInstruction(char *token);
 bool isLabel(char *token);
+bool isRegister(char *token);
 typeEnum getType(char *token);
 uint32_t getExpression(char *exp);
 uint32_t getHex(char *exp);
@@ -322,6 +323,23 @@ vector tokenise(char *start, char *delimiters) {
   return tokens;
 }
 
+bool isRegister(char *token) {
+  int length  = strlen(token);
+
+  if (length < 2 || length > 3 || token[0] != 'r') {
+    return false;
+  }
+
+  for (int i = 1; i < length; i++) {
+    if (token[i] < '0' || token[i] > '9') {
+      return false;
+    }
+  }
+
+  int number  = atoi(token + 1);
+  return number >= 0 && number <= 16;
+}
+
 bool isLabel(char *token) {
   return token[strlen(token) - 1] == ':';
 }
@@ -370,6 +388,10 @@ typeEnum getType(char *token) {
 
   if (isInstruction(token)) {
     return INSTRUCTION;
+  }
+
+  if (isRegister(token)) {
+    return REGISTER;
   }
 
   return UNDEFINED;
