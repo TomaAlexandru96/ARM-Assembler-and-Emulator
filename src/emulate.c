@@ -97,9 +97,14 @@ bool isZero(int value);
 
 int getShiftType(int value);
 
+int executeShift(int contentsRm, int shiftValueInteger, proc_state_t *pState,
+                 int shiftType, int highBitRm, int Rm, bool setFlags);
+
 int arShift(int value, int numberOfTimes, int signBit);
 
 int getBitAtPosition(int value, int shiftValueInteger);
+
+int getShiftRegister(int instruction);
 
 void executeOperation(proc_state_t *pState, int Rdest,
                      int Rn, int operand2, int auxResultArithmeticOps,
@@ -152,22 +157,12 @@ int main(int argc, char **argv) {
   FILE *file = fopen(argv[1], "rb");
   proc_state_t pState;
   memoryLoader(file, &pState);
-  //printf("%s\n", "State of the memory before procCycle");
-  //printMemory(pState.memory);
-  //printf("Entering procCycle with a pointer to pState %p\n", (void *) &pState);
   procCycle(&pState);
-  //printf("%s\n", "I finished procCycle");
 
   return EXIT_SUCCESS;
 }
 
 void printProcessorState(proc_state_t *pState) {
-  /*printf("%s\n", "~~~~~Processor state:~~~~~");
-  printf("NEG = %d\n", pState->NEG);
-  printf("ZER = %d\n", pState->ZER);
-  printf("CRY = %d\n", pState->CRY);
-  printf("OVF = %d\n", pState->OVF);
-  printf("PC  = %d\n", pState->PC);*/
   printf("%s\n", "Registers:");
   int content;
   for(int i = 0; i < NUMBER_REGS; i++) {
@@ -191,7 +186,6 @@ void printProcessorState(proc_state_t *pState) {
      }
     }
   }
-  //printf("%s\n", "~~~~~End Processor state:~~~~~");
   printMemory(pState->memory);
 }
 
@@ -213,12 +207,8 @@ void printPipeline(pipeline_t *pipeline) {
 
 
 void procCycle(proc_state_t *pState) {
-  //printf("%s\n", "I am in procCycle");
   pipeline_t pipeline = {-1, -1};
   bool finished = false;
-  //printf("%s\n", "Before loop");
-  //printProcessorState(pState);
-  //printf("%s\n", "-----------------------------------------------------------");
   // Initialisation
   pState->PC = 4;
   pState->regs[INDEX_PC] = pState->PC;
@@ -234,7 +224,6 @@ void procCycle(proc_state_t *pState) {
     }
     finished = !pipeline.decoded;
   }
-  //printf("%s\n", "After loop");
   printProcessorState(pState);
 }
 //--------------Execute DataProcessingI----------------------------------------
@@ -259,50 +248,70 @@ void executeDataProcessing(int instruction, proc_state_t *pState) {
      int Rm = getRm(instruction);
      int shiftType = getShiftType(shift); //2 bits (UX to 32)
      int highBitRm = getMSbit(pState->regs[Rm]);
+     int contentsRm = pState->regs[Rm];
+     int operand2ThroughShifter = -1;
      if(getLSbit(shift)) {
        //register
-       fprintf(stderr, "%s\n", "Optional case shift register");
+       //bit7 must be 0
+       int maskBit7 = 0x80;
+       int bit7 = (instruction & maskBit7) >> 7;
+       if(bit7) {
+         fprintf(stderr, "%s\n", "Operand2 is invalid");
+       }
+       int Rs = getShiftRegister(instruction);
+       int shiftValue = getByteBigEndian(pState->regs[Rs], 3);
+       operand2ThroughShifter = executeShift(contentsRm, shiftValue, pState,
+                                             shiftType, highBitRm, Rm, true);
      } else {
        //integer
        int maskInteger = 0xF8;
        int shiftValueInteger = (shift & maskInteger) >> 3;
-       int contentsRm = pState->regs[Rm];
-       int operand2ThroughShifter = -1;
-       switch(shiftType) {
-         case 0x0: operand2ThroughShifter = contentsRm << shiftValueInteger;
-                   //carry = getMSbit(pState->regs[Rm] <<
-                   //               (shiftValueInteger - 1));
-                   //resultAllZeros = isZero(operand2ThroughShifter);
-                   break;
-         case 0x1: operand2ThroughShifter = contentsRm >> shiftValueInteger;
-                   pState->CRY = getLSbit(contentsRm >>
-                                    (shiftValueInteger - 1));
-                   //resultAllZeros = isZero(operand2ThroughShifter);
-                   break;
-         case 0x2: operand2ThroughShifter = arShift(contentsRm,
-                                                 shiftValueInteger, highBitRm);
-                   pState->CRY = getLSbit(arShift(pState->regs[Rm],
-                                     shiftValueInteger - 1, highBitRm));
-                   //resultAllZeros = isZero(operand2ThroughShifter);
-                   break;
-         case 0x3: operand2ThroughShifter = rightRotate(pState->regs[Rm],
-                                                     shiftValueInteger);
-                   pState->CRY = getBitAtPosition(pState->regs[Rm],
-                                             shiftValueInteger);
-                   //resultAllZeros = isZero(operand2ThroughShifter);
-                   break;
-       }
-       assert(operand2ThroughShifter != -1);
-       executeOperation(pState, Rdest, Rn, operand2ThroughShifter,
-                        auxResultArithmeticOps, carry, S,
-                        resultAllZeros, opcode);
+       operand2ThroughShifter = executeShift(contentsRm, shiftValueInteger,
+                                             pState, shiftType, highBitRm,
+                                             Rm, true);
      }
-
+     executeOperation(pState, Rdest, Rn, operand2ThroughShifter,
+                      auxResultArithmeticOps, carry, S,
+                      resultAllZeros, opcode);
    }
 
+}
 
 
+int executeShift(int contentsRm, int shiftValue, proc_state_t *pState,
+                 int shiftType, int highBitRm, int Rm, bool setFlags) {
 
+  uint32_t operand2ThroughShifter = -1;
+  switch(shiftType) {
+    case 0x0: operand2ThroughShifter = contentsRm << shiftValue;
+              break;
+    case 0x1: operand2ThroughShifter = ((uint32_t) contentsRm) >> shiftValue;
+              if(setFlags) {
+                pState->CRY = getLSbit(contentsRm >> (shiftValue - 1));
+              }
+              break;
+    case 0x2: operand2ThroughShifter = arShift(contentsRm,
+                                            shiftValue, highBitRm);
+              if(setFlags) {
+                 pState->CRY = getLSbit(arShift(pState->regs[Rm],
+                                shiftValue - 1, highBitRm));
+              }
+              break;
+    case 0x3: operand2ThroughShifter = rightRotate(pState->regs[Rm],
+                                                shiftValue);
+              if(setFlags) {
+                pState->CRY = getBitAtPosition(pState->regs[Rm],
+                                               shiftValue);
+              }
+              break;
+  }
+  assert(operand2ThroughShifter != -1);
+  return operand2ThroughShifter;
+}
+
+int getShiftRegister(int instruction) {
+  int maskShiftRegister = 0xF00;
+  return (instruction & maskShiftRegister) >> 8;
 }
 
 void executeOperation(proc_state_t *pState, int Rdest,
@@ -323,16 +332,12 @@ void executeOperation(proc_state_t *pState, int Rdest,
              break;
     case 0x2: pState->regs[Rdest] = pState->regs[Rn] - operand2;
     /*SUB*/   auxResultArithmeticOps = pState->regs[Rdest];
-              //C is 0 if borrow produced, 1 Otherwise
-               carry =  getMSbit(auxResultArithmeticOps) ? 0 : 1;
-               //getAdditionCarry(pState->regs[Rn],
-               //                       (!(operand2) + 1)) == 1 ?
-               //
+              carry =  getMSbit(auxResultArithmeticOps) ? 0 : 1;
               resultAllZeros = isZero(pState->regs[Rdest]);
               //Set CPSR bits if(S)
              break;
     case 0x3: pState->regs[Rdest] = operand2 - pState->regs[Rn];
-     /*RSB*/  auxResultArithmeticOps = pState->regs[Rdest];
+    /*RSB*/   auxResultArithmeticOps = pState->regs[Rdest];
               carry = getAdditionCarry(operand2,
                                        !(pState->regs[Rn]) + 1);
               resultAllZeros = isZero(pState->regs[Rdest]);
@@ -512,48 +517,28 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
   int offset = -1;
   if(I) {
     //Offset interpreted as a shifted register
-
-    //printf("%s\n", "Doing data transfer where offset is a register");
     int shift = getShift(instruction);
-    //printf("shift = %d\n", shift);
     int Rm = getRm(instruction);
-    //printf("Rm = %d\n", Rm);
     int shiftType = getShiftType(shift); //2 bits (UX to 32)
-    //printf("shift type = %d\n", shiftType);
     int highBitRm = getMSbit(pState->regs[Rm]);
+    int contentsRm = pState->regs[Rm];
+    int operand2ThroughShifter = -1;
     if(getLSbit(shift)) {
       //register
-      fprintf(stderr, "%s\n", "Optional case shift register");
+      fprintf(stderr, "%s\n", "Operand2 is invalid");
     } else {
       int maskInteger = 0xF8;
       int shiftValueInteger = (shift & maskInteger) >> 3;
-      int contentsRm = pState->regs[Rm];
-      int operand2ThroughShifter = -1;
-      switch(shiftType) {
-        case 0x0: operand2ThroughShifter = contentsRm << shiftValueInteger;
-                  break;
-        case 0x1: operand2ThroughShifter = contentsRm >> shiftValueInteger;
-                  break;
-        case 0x2: operand2ThroughShifter = arShift(contentsRm,
-                                          shiftValueInteger, highBitRm);
-                  break;
-        case 0x3: operand2ThroughShifter = rightRotate(pState->regs[Rm],
-                                                    shiftValueInteger);
-                  break;
-      }
-      assert(operand2ThroughShifter != -1);
-      /*
-       *operand2ThroughShifter is the value to be added/subtracted to/from Rn
-       */
-       offset = operand2ThroughShifter;
+
+      operand2ThroughShifter = executeShift(contentsRm, shiftValueInteger,
+                               pState, shiftType, highBitRm, Rm, false);
     }
+    //operand2ThroughShifter is the value to be added/subtracted to/from Rn
+    offset = operand2ThroughShifter;
   } else {
     //Offset interpreted as 12-bit immediate value
     offset = (uint32_t) getOffsetDataTransfer(instruction);
-
-
   }
-
   int address = -1;
   if(L) {
     //Word loaded from memory into register
@@ -572,11 +557,15 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        //Post-indexing
        address = pState->regs[Rn];
        //Transfer data
-       pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
+       if(address > (MEM_SIZE_BYTES - 4)) {
+         printf("Error: Out of bounds memory access at address 0x%.8x\n",
+                address);
+       } else {
+          pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
+       }
        //Then set base register
        pState->regs[Rn] = getEffectiveAddress(Rn,offset, U, pState);
      }
-
   } else {
     //Word stored in memory
     //Mem[address] = regs[Rd]
@@ -645,10 +634,10 @@ int getMemoryContentsAtAddress(proc_state_t *pState, int address) {
 
 int getByteBigEndian(int content, int index) {
   switch (index) {
-    case 0: return (content & 0xFF000000) >> 24; // MASK_BYTE0_BE
-    case 1: return (content & 0xFF0000) >> 16;   // MASK_BYTE1_BE
-    case 2: return (content & 0xFF00) >> 8;    //MASK_BYTE2_BE
-    case 3: return (content & 0xFF);        //MASK_BYTE3_BE
+    case 0: return (content & MASK_BYTE0_BE) >> 24;
+    case 1: return (content & MASK_BYTE1_BE) >> 16;
+    case 2: return (content & MASK_BYTE2_BE) >> 8;
+    case 3: return (content & MASK_BYTE3_BE);
     default: return -1;
   }
 }
@@ -667,8 +656,6 @@ int getOffsetDataTransfer(int instruction) {
   int mask0To11 = 0xFFF;
   return instruction & mask0To11;
 }
-
-
 
 int getISingle(int instruction) {
   // same as I bit for Data Processing
@@ -816,30 +803,25 @@ uint8_t getCond(int instruction) {
 
 //-----------------------------------------------------------------------------
 void decodeFetched(int instruction, proc_state_t *pState, pipeline_t *pipeline){
-  //printf("I am decoding %x\n", instruction);
    int idBits = extractIDbits(instruction);
    if(idBits == 1) {
      //check if Cond satisfied before executing
-      /* printf("%s\n", "This is data transfer instruction");*/
        if(shouldExecute(instruction, pState)) {
         executeSDataTransfer(instruction, pState);
        }
    } else if(idBits == 2) {
      //check if Cond satisfied before executing
-      /*printf("%s\n", "This is branch instruction");*/
       if(shouldExecute(instruction, pState)) {
         executeBranch(instruction, pState, pipeline);
       }
    } else if(!idBits) {
       //Choose between MultiplyI and DataProcessingI
        if(isMult(instruction)) {
-         /*printf("%s\n", "This is multiply instruction");*/
          if(shouldExecute(instruction, pState)) {
            executeMultiply(instruction, pState);
          }
        } else {
          //Then check if Cond satisfied before executing
-         /*printf("%s\n", "This is data processing instruction");*/
          if(shouldExecute(instruction, pState)) {
           executeDataProcessing(instruction, pState);
          }
@@ -868,7 +850,6 @@ bool isMult(int instruction) {
   }
 }
 
-
 int extractIDbits(int instruction) {
   int mask = 0xC000000;
   instruction =  instruction & mask;
@@ -887,20 +868,16 @@ void memoryLoader(FILE *file, proc_state_t *pState) {
   fclose(file);
   //load every instruction in binary file into memory
   //Instructions stored in Big Endian, ready to be decoded
-  /*printMemory(pState->memory);*/
-
 }
 
 void printMemory(int memory[]) {
    printf("%s", "Non-zero memory:\n");
-   /*printf("%s\n", "Memory layout LITTLE ENDIAN: ");*/
    for(int i = 0; i < MEM_SIZE_BYTES; i += 4) {
      if(memory[i / 4]) {
        printf("0x%.8x: 0x%.8x\n", i, convertToLittleEndian(memory[i / 4]));
      }
    }
 }
-
 
 int convertToLittleEndian(int instruction) {
   int maskByte0 = 0xFF;
