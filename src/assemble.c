@@ -179,7 +179,6 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         // if there is a valid isntruction decode it and increase
         // instruction counter
         instructions[PC] = decode(&tokens, labelMapping, errorVector, lineNo);
-        printBinary(instructions[PC]);
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
@@ -214,16 +213,74 @@ uint32_t decodeDataProcessing(vector *tokens,
                         vector *errorVector, char *ln) {
   char *instruction = getFront(tokens);
   uint32_t ins = 0;
-
+  uint32_t opcode = *get(DATA_OPCODE, instruction) << 0x15;
   setCond(&ins, ALWAYS_CONDITION);
+  // set opcode
+  ins |= opcode;
+  uint32_t dataType = *get(DATA_TYPE, instruction);
+  uint32_t rd = 0;
+  uint32_t rn = 0;
+  uint32_t operand2 = 0;
+  uint32_t i = 0;
+  char *token;
+  if (dataType != 2) {
+    // we have either 0, 1 type instruction
+    token = peekFront(*tokens);
+    if (getType(token) != REGISTER) {
+      // throw register error
+      return -1;
+    }
+    getFront(tokens);
 
-  if (!get(DATA_TYPE, instruction)) {
-    // we have first type of instruction
-    // with syntax <opcode> Rd, Rn, <Operand2>
-  } else {
-    // we have second type of instruction
-    // with syntax <opcode> Rn, <Operand2>
+    rd = getDec(token + 1) << 0xC;
   }
+
+  if (dataType != 1) {
+    // we have either 0, 2 type instruction
+    token = peekFront(*tokens);
+    if (getType(token) != REGISTER) {
+      // throw register error
+      return -1;
+    }
+    getFront(tokens);
+
+    rn = getDec(token + 1) << 0x10;
+  }
+
+  token = peekFront(*tokens);
+  if (getType(token) != EXPRESSION && getType(token) != REGISTER) {
+    // throw expression error
+    return -1;
+  }
+  getFront(tokens);
+
+  if (getType(token) == EXPRESSION) {
+    // decode expression and set bit i to 1
+    operand2 = getExpression(token);
+    printf("%d\n", operand2);
+    i = 1;
+  } else {
+    // we have a register
+    operand2 = getDec(token + 1);
+  }
+
+  if (dataType == 2) {
+    // we have third type of instruction
+    // with syntax <opcode> Rn, <Operand2>
+    // set S bit to 1
+    ins |= 0x80000;
+  }
+
+  // set bit I
+  ins |= i << 0x19;
+  // set rn
+  ins |= rn;
+  // set rd register
+  ins |= rd;
+  // set operand2
+  printBinary(ins);
+  printBinary(operand2);
+  ins |= operand2;
 
   return ins;
 }
@@ -250,7 +307,7 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
 
   char *expression = (char *) peekFront(*tokens);
 
-  if (!expression) {
+  if (!expression || getType(expression) == INSTRUCTION) {
     throwExpressionMissingError(branch, errorVector, ln);
     free(branch);
     return -1;
@@ -264,6 +321,8 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
     if (getType(expression) != EXPRESSION) {
       throwExpressionError(expression, errorVector, ln);
       free(branch);
+      free(expression);
+      getFront(tokens);
       return -1;
     }
     target = 0;
@@ -277,7 +336,7 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
 }
 
 void setCond(uint32_t *x, char *cond) {
-  uint32_t condition = *get(CONDITIONS, cond) << 0x1B;
+  uint32_t condition = *get(CONDITIONS, cond) << 0x1C;
   // make space
   *x <<= 4;
   *x >>= 4;

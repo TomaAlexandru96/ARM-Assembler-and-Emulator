@@ -49,6 +49,7 @@ map fillDataToOpcode(void) {
   put(&m, "tst", 8);
   put(&m, "teq", 9);
   put(&m, "cmp", 10);
+  
   return m;
 }
 
@@ -123,10 +124,9 @@ map fillDataToType(void) {
 
   // Instructions that do not compute results,
   // but do set the CPSR flags: tst, teq, cmp
-  // same syntax as mov
-  put(&m, "tst", 1);
-  put(&m, "teq", 1);
-  put(&m, "cmp", 1);
+  put(&m, "tst", 2);
+  put(&m, "teq", 2);
+  put(&m, "cmp", 2);
 
   return m;
 }
