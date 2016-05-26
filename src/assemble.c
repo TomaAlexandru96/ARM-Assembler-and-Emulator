@@ -4,6 +4,7 @@
 #define DELIMITERS " ,\n"
 #define MEMORY_SIZE 4
 #define INSTRUCTION_SIZE 32
+#define ALWAYS_CONDITION ""
 
 uint32_t firstPass(FILE *input, map *labelMapping,
               vector *errorVector, uint32_t *instructionsNumber);
@@ -33,9 +34,14 @@ bool isExpression(char *token);
 bool isInstruction(char *token);
 bool isLabel(char *token);
 typeEnum getType(char *token);
-uint32_t expressionToInt(char *exp);
+uint32_t getExpression(char *exp);
+uint32_t getHex(char *exp);
+uint32_t getDec(char *exp);
 
 int main(int argc, char **argv) {
+  // DEBUG ZONE
+  // DEBUG ZONE
+
   // Check for number of arguments
   if (argc != 3) {
     fprintf(stderr, "The function needs 2 arguments!");
@@ -74,6 +80,11 @@ int main(int argc, char **argv) {
   secondPass(linesNumber, instructions,
                 &errorVector, input, labelMapping);
 
+  // clear
+  freeAll();
+  clearFullMap(&labelMapping);
+  fclose(input);
+
   // if we have compile erros stop and print errors
   if (!isEmptyVector(errorVector)) {
     while (!isEmptyVector(errorVector)) {
@@ -81,24 +92,15 @@ int main(int argc, char **argv) {
       fprintf(stderr, "%s\n", error);
       free(error);
     }
-    freeAll();
-    clearVector(&errorVector);
-    clearMap(&labelMapping);
-    fclose(input);
+
+    clearFullVector(&errorVector);
     exit(EXIT_FAILURE);
   }
 
   FILE *output = fopen(argv[2], "wb");
   fwrite(instructions, sizeof(uint32_t), instructionsNumber, output);
-  fclose(input);
   fclose(output);
-
-  // DEBUG ZONE
-  // DEBUG ZONE
-
-  freeAll();
-  clearVector(&errorVector);
-  clearMap(&labelMapping);
+  clearFullVector(&errorVector);
 
   exit(EXIT_SUCCESS);
 }
@@ -127,10 +129,11 @@ uint32_t firstPass(FILE *input, map *labelMapping,
           // that we have multiple definitions of the same label
           // therefore throw an error message
           throwLabelError(token, errorVector, lineNo);
+          free(token);
+        } else {
+          putBack(&currentLabels, token);
         }
-        putBack(&currentLabels, token);
-      }
-      if (getType(token) == INSTRUCTION) {
+      } else if (getType(token) == INSTRUCTION) {
         // if we found a valid instruction
         // map all current unmapped labels
         // to this current memmory location
@@ -142,6 +145,9 @@ uint32_t firstPass(FILE *input, map *labelMapping,
         }
         currentMemoryLocation += MEMORY_SIZE;
         (*instructionsNumber)++;
+      } else {
+        // token is neither label nor instruction so we have to free it
+        free(token);
       }
     }
     free(lineNo);
@@ -154,7 +160,6 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
   }
 
-  clearVector(&currentLabels);
   return lineNumber - 1;
 }
 
@@ -177,13 +182,12 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
-        token = getFront(&tokens);
+        free(getFront(&tokens));
       } else {
         // throw error because instruction is undefined
         throwUndeifinedError(token, errorVector, lineNo);
-        token = getFront(&tokens);
+        free(getFront(&tokens));
       }
-      free(token);
     }
     free(lineNo);
     ln++;
@@ -199,7 +203,7 @@ uint32_t decode(vector *tokens,
     case 2: return decodeSingleDataTransfer(tokens, errorVector, ln);
     case 3: return decodeBranch(tokens, labelMapping, errorVector, ln);
     case 4:
-    case 5: getFront(tokens);
+    case 5: free(getFront(tokens));
             return 0;
     default: assert(false);
   }
@@ -207,19 +211,19 @@ uint32_t decode(vector *tokens,
 
 uint32_t decodeDataProcessing(vector *tokens,
                         vector *errorVector, char *ln) {
-  getFront(tokens);
+  free(getFront(tokens));
   return 0;
 }
 
 uint32_t decodeMultiply(vector *tokens,
                         vector *errorVector, char *ln) {
-  getFront(tokens);
+  free(getFront(tokens));
   return 0;
 }
 
 uint32_t decodeSingleDataTransfer(vector *tokens,
                         vector *errorVector, char *ln) {
-  getFront(tokens);
+  free(getFront(tokens));
   return 0;
 }
 
@@ -235,19 +239,27 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
 
   if (!expression) {
     throwExpressionMissingError(branch, errorVector, ln);
+    free(branch);
     return -1;
   }
-
-  getFront(tokens);
 
   if ((mem = get(labelMapping, expression))) {
     // we have a mapping
     target = *mem;
   } else {
     // we have an offset
+    if (getType(expression) != EXPRESSION) {
+      throwExpressionError(errorVector, ln);
+      free(branch);
+      return -1;
+    }
     target = 0;
   }
   ins |= target;
+
+  getFront(tokens);
+  free(branch);
+  free(expression);
   return ins;
 }
 
@@ -303,13 +315,28 @@ bool isLabel(char *token) {
 }
 
 bool isExpression(char *token) {
+  if (!strlen(token)) {
+    return false;
+  }
+
   if (token[0] != '#') {
     return false;
   }
 
-  for (int i = 1; token[i] != '\0'; i++) {
-    if (token[i] < '0' || token[i] > '9') {
-      return false;
+  if (strlen(token) >= 4 && token[1] == '0' &&token[2] == 'x') {
+    // we might have a hex value
+    for (int i = 3; token[i] != '\0'; i++) {
+      if ((token[i] < '0' || token[i] > '9') &&
+                    (token[i] < 'A' || token[i] > 'F')) {
+        return false;
+      }
+    }
+  } else {
+    // we might have a decimal value
+    for (int i = 1; token[i] != '\0'; i++) {
+      if (token[i] < '0' || token[i] > '9') {
+        return false;
+      }
     }
   }
 
@@ -336,8 +363,33 @@ typeEnum getType(char *token) {
   return UNDEFINED;
 }
 
-uint32_t expressionToInt(char *exp) {
-  return (uint32_t) strtol(exp + 1, (char **) NULL, 10);
+uint32_t getExpression(char *exp) {
+  assert(getType(exp) == EXPRESSION);
+  if (exp[1] == '0' && exp[2] == 'x') {
+    return getHex(exp + 3);
+  } else {
+    return getDec(exp + 1);
+  }
+}
+
+uint32_t getHex(char *exp) {
+  int res = 0;
+  for (int i = 0; exp[i] != '\0'; i++) {
+    int x;
+    if (exp[i] >= 'A' && exp[i] <= 'F') {
+      x = exp[i] - 'A' + 10;
+    } else {
+      x = exp[i] - '0';
+    }
+    res <<= 4;
+    res |= x;
+  }
+
+  return res;
+}
+
+uint32_t getDec(char *exp) {
+  return atoi(exp);
 }
 
 char *uintToString(uint32_t num) {

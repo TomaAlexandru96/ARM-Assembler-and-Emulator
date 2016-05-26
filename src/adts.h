@@ -12,6 +12,18 @@ void clearMap(map *m) {
   m->size = 0;
 }
 
+void clearFullMap(map *m) {
+  mapNode *ptr = m->head;
+  while(ptr) {
+    mapNode *prev = ptr;
+    ptr = ptr->next;
+    free(prev->key);
+    free(prev);
+  }
+  m->head = NULL;
+  m->size = 0;
+}
+
 map constructMap(void) {
   map m = {NULL, 0};
   return m;
@@ -77,6 +89,13 @@ void printMap(map m) {
 void clearVector(vector *v) {
   while (!isEmptyVector(*v)) {
     getFront(v);
+  }
+  v->size = 0;
+}
+
+void clearFullVector(vector *v) {
+  while (!isEmptyVector(*v)) {
+    free(getFront(v));
   }
   v->size = 0;
 }
