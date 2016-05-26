@@ -74,6 +74,11 @@ int main(int argc, char **argv) {
   secondPass(linesNumber, instructions,
                 &errorVector, input, labelMapping);
 
+  // clear
+  freeAll();
+  clearFullMap(&labelMapping);
+  fclose(input);
+
   // if we have compile erros stop and print errors
   if (!isEmptyVector(errorVector)) {
     while (!isEmptyVector(errorVector)) {
@@ -81,24 +86,18 @@ int main(int argc, char **argv) {
       fprintf(stderr, "%s\n", error);
       free(error);
     }
-    freeAll();
-    clearVector(&errorVector);
-    clearMap(&labelMapping);
-    fclose(input);
+
+    clearFullVector(&errorVector);
     exit(EXIT_FAILURE);
   }
 
   FILE *output = fopen(argv[2], "wb");
   fwrite(instructions, sizeof(uint32_t), instructionsNumber, output);
-  fclose(input);
   fclose(output);
+  clearFullVector(&errorVector);
 
   // DEBUG ZONE
   // DEBUG ZONE
-
-  freeAll();
-  clearVector(&errorVector);
-  clearMap(&labelMapping);
 
   exit(EXIT_SUCCESS);
 }
@@ -127,10 +126,11 @@ uint32_t firstPass(FILE *input, map *labelMapping,
           // that we have multiple definitions of the same label
           // therefore throw an error message
           throwLabelError(token, errorVector, lineNo);
+          free(token);
+        } else {
+          putBack(&currentLabels, token);
         }
-        putBack(&currentLabels, token);
-      }
-      if (getType(token) == INSTRUCTION) {
+      } else if (getType(token) == INSTRUCTION) {
         // if we found a valid instruction
         // map all current unmapped labels
         // to this current memmory location
@@ -142,6 +142,9 @@ uint32_t firstPass(FILE *input, map *labelMapping,
         }
         currentMemoryLocation += MEMORY_SIZE;
         (*instructionsNumber)++;
+      } else {
+        // token is neither label nor instruction so we have to free it
+        free(token);
       }
     }
     free(lineNo);
@@ -154,7 +157,6 @@ uint32_t firstPass(FILE *input, map *labelMapping,
     put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
   }
 
-  clearVector(&currentLabels);
   return lineNumber - 1;
 }
 
@@ -177,13 +179,12 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
-        token = getFront(&tokens);
+        free(getFront(&tokens));
       } else {
         // throw error because instruction is undefined
         throwUndeifinedError(token, errorVector, lineNo);
-        token = getFront(&tokens);
+        free(getFront(&tokens));
       }
-      free(token);
     }
     free(lineNo);
     ln++;
@@ -199,7 +200,7 @@ uint32_t decode(vector *tokens,
     case 2: return decodeSingleDataTransfer(tokens, errorVector, ln);
     case 3: return decodeBranch(tokens, labelMapping, errorVector, ln);
     case 4:
-    case 5: getFront(tokens);
+    case 5: free(getFront(tokens));
             return 0;
     default: assert(false);
   }
@@ -207,19 +208,19 @@ uint32_t decode(vector *tokens,
 
 uint32_t decodeDataProcessing(vector *tokens,
                         vector *errorVector, char *ln) {
-  getFront(tokens);
+  free(getFront(tokens));
   return 0;
 }
 
 uint32_t decodeMultiply(vector *tokens,
                         vector *errorVector, char *ln) {
-  getFront(tokens);
+  free(getFront(tokens));
   return 0;
 }
 
 uint32_t decodeSingleDataTransfer(vector *tokens,
                         vector *errorVector, char *ln) {
-  getFront(tokens);
+  free(getFront(tokens));
   return 0;
 }
 
@@ -235,6 +236,7 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
 
   if (!expression) {
     throwExpressionMissingError(branch, errorVector, ln);
+    free(branch);
     return -1;
   }
 
@@ -248,6 +250,9 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
     target = 0;
   }
   ins |= target;
+
+  free(branch);
+  free(expression);
   return ins;
 }
 

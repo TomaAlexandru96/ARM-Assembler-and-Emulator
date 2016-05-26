@@ -17,13 +17,13 @@ struct map {
 
 struct mapNode {
   mapNode    *next;
-  char *key;
-  uint32_t    value;
+  char       *key;
+  uint32_t   value;
 };
 
 struct vectorNode {
   vectorNode *previous;
-  char *value;
+  char       *value;
   vectorNode *next;
 };
 
@@ -36,6 +36,7 @@ struct vector {
 // -------------------FUNCTION DECLARATIONS-----------------------
 // ---------------------------MAP---------------------------------
 void clearMap(map *m);
+void clearFullMap(map *m);
 map constructMap(void);
 
 /**
@@ -71,6 +72,7 @@ bool isEmptyMap(map m);
 
 // --------------------------VECTOR--------------------------------
 void clearVector(vector *v);
+void clearFullVector(vector *v);
 vector constructVector(void);
 void putFront(vector *v, char *value);
 void putBack(vector *v, char *value);
