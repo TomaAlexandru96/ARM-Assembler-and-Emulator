@@ -39,7 +39,7 @@ bool isInstruction(char *token);
 bool isLabel(char *token);
 bool isRegister(char *token);
 typeEnum getType(char *token);
-uint32_t getExpression(char *exp);
+uint32_t getExpression(char *exp, vector *errorVector, char *ln);
 uint32_t getHex(char *exp);
 uint32_t getDec(char *exp);
 
@@ -262,7 +262,7 @@ uint32_t decodeDataProcessing(vector *tokens,
 
   if (getType(token) == EXPRESSION) {
     // decode expression and set bit i to 1
-    operand2 = getExpression(token);
+    operand2 = getExpression(token, errorVector, ln);
     i = 1;
   } else {
     // we have a register
@@ -390,7 +390,6 @@ uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
   char *branch = getFront(tokens);
   uint32_t ins = 0xA << 0x18;
   setCond(&ins, (branch + 1));
-  printBinary(ins);
   uint32_t *mem;
   uint32_t target;
 
@@ -410,7 +409,6 @@ uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
   }
 
   ins |= target;
-  printBinary(ins);
   getFront(tokens);
   free(branch);
   free(expression);
@@ -538,13 +536,38 @@ typeEnum getType(char *token) {
   return UNDEFINED;
 }
 
-uint32_t getExpression(char *exp) {
+uint32_t getExpression(char *exp, vector *errorVector, char *ln) {
   assert(getType(exp) == EXPRESSION);
+
+  uint32_t res = 0;
+  uint32_t rotations = 0;
+
   if (exp[1] == '0' && exp[2] == 'x') {
-    return getHex(exp + 3);
+    res = getHex(exp + 3);
   } else {
-    return getDec(exp + 1);
+    res = getDec(exp + 1);
   }
+
+  printBinary(res);
+
+  // check if exp can be roatated to a 8 bit imediate value
+  while (res >= 0x100 && rotations <= 30) {
+    char bits31_30 = (res & 0xC0000000) >> (INSTRUCTION_SIZE - 2);
+    res <<= 2;
+    res |= bits31_30;
+    rotations += 2;
+  }
+
+  if (rotations > 30 || rotations % 2 != 0) {
+    // throw an error
+    // number can't be represented
+    throwExpressionError(exp, errorVector, ln);
+    return -1;
+  }
+
+  res |= ((rotations / 2) << 0x8);
+
+  return res;
 }
 
 uint32_t getHex(char *exp) {
