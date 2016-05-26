@@ -3,8 +3,10 @@
 #define MAX_LINE_LENGTH 512
 #define DELIMITERS " ,\n"
 #define MEMORY_SIZE 4
+#define PC_OFFSET 2
 #define INSTRUCTION_SIZE 32
 #define ALWAYS_CONDITION ""
+#define BRANCH_OFFSET_SIZE  26
 
 uint32_t firstPass(FILE *input, map *labelMapping,
               vector *errorVector, uint32_t *instructionsNumber);
@@ -18,14 +20,14 @@ void setCond(uint32_t *x, char *cond);
 * Converts unsigned int to string
 **/
 char *uintToString(uint32_t num);
-uint32_t decode(vector *tokens,
+uint32_t decode(vector *tokens, uint32_t instructionNumber,
                 map labelMapping, vector *errorVector, char *ln);
 uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln);
 uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln);
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *errorVector,
                                   char *ln);
-uint32_t decodeBranch(vector *tokens, map labelMapping,
-                      vector *errorVector, char *ln);
+uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
+                map labelMapping, vector *errorVector, char *ln);
 void throwUndeifinedError(char *name, vector *errorVector, char *ln);
 void throwLabelError(char *name, vector *errorVector, char *ln);
 void throwExpressionError(char *expression, vector *errorVector, char *ln);
@@ -144,7 +146,7 @@ uint32_t firstPass(FILE *input, map *labelMapping,
           // map all labels to current memorry location
           put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
         }
-        currentMemoryLocation += MEMORY_SIZE;
+        currentMemoryLocation++;
         (*instructionsNumber)++;
       } else {
         // token is neither label nor instruction so we have to free it
@@ -178,7 +180,8 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
       if (getType(token) == INSTRUCTION) {
         // if there is a valid isntruction decode it and increase
         // instruction counter
-        instructions[PC] = decode(&tokens, labelMapping, errorVector, lineNo);
+        instructions[PC] = decode(&tokens, PC,
+                          labelMapping, errorVector, lineNo);
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
@@ -194,14 +197,15 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
   }
 }
 
-uint32_t decode(vector *tokens,
+uint32_t decode(vector *tokens, uint32_t instructionNumber,
             map labelMapping, vector *errorVector, char *ln) {
   uint32_t type = *get(ALL_INSTRUCTIONS, peekFront(*tokens));
   switch (type) {
     case 0: return decodeDataProcessing(tokens, errorVector, ln);
     case 1: return decodeMultiply(tokens, errorVector, ln);
     case 2: return decodeSingleDataTransfer(tokens, errorVector, ln);
-    case 3: return decodeBranch(tokens, labelMapping, errorVector, ln);
+    case 3: return decodeBranch(tokens, instructionNumber,
+                                      labelMapping, errorVector, ln);
     case 4:
     case 5: free(getFront(tokens));
             return 0;
@@ -257,7 +261,6 @@ uint32_t decodeDataProcessing(vector *tokens,
   if (getType(token) == EXPRESSION) {
     // decode expression and set bit i to 1
     operand2 = getExpression(token);
-    printf("%d\n", operand2);
     i = 1;
   } else {
     // we have a register
@@ -268,7 +271,7 @@ uint32_t decodeDataProcessing(vector *tokens,
     // we have third type of instruction
     // with syntax <opcode> Rn, <Operand2>
     // set S bit to 1
-    ins |= 0x80000;
+    ins |= 0x1 << 0x14;
   }
 
   // set bit I
@@ -278,8 +281,6 @@ uint32_t decodeDataProcessing(vector *tokens,
   // set rd register
   ins |= rd;
   // set operand2
-  printBinary(ins);
-  printBinary(operand2);
   ins |= operand2;
 
   return ins;
@@ -297,11 +298,12 @@ uint32_t decodeSingleDataTransfer(vector *tokens,
   return 0;
 }
 
-uint32_t decodeBranch(vector *tokens, map labelMapping,
-                        vector *errorVector, char *ln) {
+uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
+                        map labelMapping, vector *errorVector, char *ln) {
   char *branch = getFront(tokens);
   uint32_t ins = 0xA << 0x18;
   setCond(&ins, (branch + 1));
+  printBinary(ins);
   uint32_t *mem;
   uint32_t target;
 
@@ -315,20 +317,13 @@ uint32_t decodeBranch(vector *tokens, map labelMapping,
 
   if ((mem = get(labelMapping, expression))) {
     // we have a mapping
-    target = *mem;
-  } else {
-    // we have an offset
-    if (getType(expression) != EXPRESSION) {
-      throwExpressionError(expression, errorVector, ln);
-      free(branch);
-      free(expression);
-      getFront(tokens);
-      return -1;
-    }
-    target = 0;
+    target = *mem - instructionNumber - PC_OFFSET;
+    target <<= INSTRUCTION_SIZE - (BRANCH_OFFSET_SIZE - 2);
+    target >>= INSTRUCTION_SIZE - (BRANCH_OFFSET_SIZE - 2);
   }
-  ins |= target;
 
+  ins |= target;
+  printBinary(ins);
   getFront(tokens);
   free(branch);
   free(expression);
