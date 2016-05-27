@@ -1,3 +1,4 @@
+#define NDEBUG
 #include "adts.h"
 
 // -------------------FUNCTION DECLARATIONS-----------------------
@@ -49,7 +50,7 @@ map fillDataToOpcode(void) {
   put(&m, "tst", 8);
   put(&m, "teq", 9);
   put(&m, "cmp", 10);
-  
+
   return m;
 }
 

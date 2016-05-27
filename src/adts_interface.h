@@ -1,3 +1,4 @@
+#define NDEBUG
 #include <assert.h>
 #include <string.h>
 #include <stdbool.h>
@@ -34,9 +35,11 @@ struct vector {
 };
 
 // -------------------FUNCTION DECLARATIONS-----------------------
+// -------------------------HELPER--------------------------------
+char *copy(const char *original);
+
 // ---------------------------MAP---------------------------------
 void clearMap(map *m);
-void clearFullMap(map *m);
 map constructMap(void);
 
 /**
@@ -72,7 +75,6 @@ bool isEmptyMap(map m);
 
 // --------------------------VECTOR--------------------------------
 void clearVector(vector *v);
-void clearFullVector(vector *v);
 vector constructVector(void);
 void putFront(vector *v, char *value);
 void putBack(vector *v, char *value);
@@ -83,4 +85,3 @@ char *peekFront(vector v);
 char *peekBack(vector v);
 void printVector(vector v);
 bool contains(vector v, char *value);
-int getTotalLengthSize(vector v);

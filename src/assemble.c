@@ -1,3 +1,4 @@
+#define NDEBUG
 #include "mappings.h"
 
 #define MAX_LINE_LENGTH 512
@@ -44,9 +45,6 @@ uint32_t getHex(char *exp);
 uint32_t getDec(char *exp);
 
 int main(int argc, char **argv) {
-  // DEBUG ZONE
-  // DEBUG ZONE
-
   // Check for number of arguments
   if (argc != 3) {
     fprintf(stderr, "The function needs 2 arguments!");
@@ -87,7 +85,7 @@ int main(int argc, char **argv) {
 
   // clear
   freeAll();
-  clearFullMap(&labelMapping);
+  clearMap(&labelMapping);
   fclose(input);
 
   // if we have compile erros stop and print errors
@@ -98,14 +96,14 @@ int main(int argc, char **argv) {
       free(error);
     }
 
-    clearFullVector(&errorVector);
+    clearVector(&errorVector);
     exit(EXIT_FAILURE);
   }
 
   FILE *output = fopen(argv[2], "wb");
   fwrite(instructions, sizeof(uint32_t), instructionsNumber, output);
   fclose(output);
-  clearFullVector(&errorVector);
+  clearVector(&errorVector);
 
   exit(EXIT_SUCCESS);
 }
@@ -134,26 +132,26 @@ uint32_t firstPass(FILE *input, map *labelMapping,
           // that we have multiple definitions of the same label
           // therefore throw an error message
           throwLabelError(token, errorVector, lineNo);
-          free(token);
         } else {
           putBack(&currentLabels, token);
         }
-      } else if (getType(token) == INSTRUCTION) {
+      }
+
+      if (getType(token) == INSTRUCTION) {
         // if we found a valid instruction
         // map all current unmapped labels
         // to this current memmory location
         // and advance memory
-        free(token);
         while (!isEmptyVector(currentLabels)) {
           // map all labels to current memorry location
-          put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
+          char *label = getFront(&currentLabels);
+          put(labelMapping, label, currentMemoryLocation);
+          free(label);
         }
         currentMemoryLocation++;
         (*instructionsNumber)++;
-      } else {
-        // token is neither label nor instruction so we have to free it
-        free(token);
       }
+      free(token);
     }
     free(lineNo);
     lineNumber++;
@@ -194,8 +192,8 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
         free(getFront(&tokens));
       }
     }
-    free(lineNo);
     ln++;
+    free(lineNo);
   }
 }
 
@@ -211,7 +209,9 @@ uint32_t decode(vector *tokens, uint32_t instructionNumber,
     case 4:
     case 5: free(getFront(tokens));
             return 0;
-    default: assert(false);
+    default: //assert(false);
+             free(getFront(tokens));
+             return -1;
   }
 }
 
@@ -234,11 +234,13 @@ uint32_t decodeDataProcessing(vector *tokens,
     token = peekFront(*tokens);
     if (getType(token) != REGISTER) {
       // throw register error
+      free(instruction);
       return -1;
     }
     getFront(tokens);
 
     rd = getDec(token + 1) << 0xC;
+    free(token);
   }
 
   if (dataType != 1) {
@@ -246,16 +248,19 @@ uint32_t decodeDataProcessing(vector *tokens,
     token = peekFront(*tokens);
     if (getType(token) != REGISTER) {
       // throw register error
+      free(instruction);
       return -1;
     }
     getFront(tokens);
 
     rn = getDec(token + 1) << 0x10;
+    free(token);
   }
 
   token = peekFront(*tokens);
   if (getType(token) != EXPRESSION && getType(token) != REGISTER) {
     // throw expression error
+    free(instruction);
     return -1;
   }
   getFront(tokens);
@@ -268,6 +273,7 @@ uint32_t decodeDataProcessing(vector *tokens,
     // we have a register
     operand2 = getDec(token + 1);
   }
+  free(token);
 
   if (dataType == 2) {
     // we have third type of instruction
@@ -275,7 +281,7 @@ uint32_t decodeDataProcessing(vector *tokens,
     // set S bit to 1
     ins |= 0x1 << 0x14;
   }
-
+  free(instruction);
   // set bit I
   ins |= i << 0x19;
   // set rn
@@ -447,6 +453,7 @@ vector tokenise(char *start, char *delimiters) {
         token[tokenSize] = '\0';
         putBack(&tokens, token);
         tokenSize = 0;
+        free(token);
       }
     }
   }
@@ -457,6 +464,7 @@ vector tokenise(char *start, char *delimiters) {
     strncpy(token, start + i - tokenSize, tokenSize);
     token[tokenSize] = '\0';
     putBack(&tokens, token);
+    free(token);
   }
 
   return tokens;
@@ -548,8 +556,6 @@ uint32_t getExpression(char *exp, vector *errorVector, char *ln) {
     res = getDec(exp + 1);
   }
 
-  printBinary(res);
-
   // check if exp can be roatated to a 8 bit imediate value
   while (res >= 0x100 && rotations <= 30) {
     char bits31_30 = (res & 0xC0000000) >> (INSTRUCTION_SIZE - 2);
@@ -636,6 +642,7 @@ void throwUndeifinedError(char *name, vector *errorVector, char *ln) {
   strcat(error, name);
   strcat(error, ".");
   putBack(errorVector, error);
+  free(error);
 }
 
 void throwLabelError(char *name, vector *errorVector, char *ln) {
@@ -646,6 +653,7 @@ void throwLabelError(char *name, vector *errorVector, char *ln) {
   strcat(error, name);
   strcat(error, ".");
   putBack(errorVector, error);
+  free(error);
 }
 
 void throwExpressionError(char *name, vector *errorVector, char *ln) {
@@ -656,6 +664,7 @@ void throwExpressionError(char *name, vector *errorVector, char *ln) {
   strcat(error, name);
   strcat(error, " is invalid.");
   putBack(errorVector, error);
+  free(error);
 }
 
 void throwExpressionMissingError(char *ins, vector *errorVector, char *ln) {
@@ -666,6 +675,7 @@ void throwExpressionMissingError(char *ins, vector *errorVector, char *ln) {
   strcat(error, ins);
   strcat(error, " instruction.");
   putBack(errorVector, error);
+  free(error);
 }
 
 // ---------------------ADT TESTS------------------------------

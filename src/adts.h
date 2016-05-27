@@ -1,18 +1,25 @@
+#define NDEBUG
 #include "adts_interface.h"
+
+// -------------------------HELPER--------------------------------
+char *copy(const char *original) {
+  char *res = NULL;
+
+  res = malloc ((strlen(original) + 1) * sizeof(char));
+
+  if (!res) {
+    // malloc has failed exit
+    fprintf(stderr, "The malloc from the copy function has failed\n");
+    exit(EXIT_FAILURE);
+  }
+
+  strcpy(res, original);
+
+  return res;
+}
 
 // ---------------------------MAP---------------------------------
 void clearMap(map *m) {
-  mapNode *ptr = m->head;
-  while(ptr) {
-    mapNode *prev = ptr;
-    ptr = ptr->next;
-    free(prev);
-  }
-  m->head = NULL;
-  m->size = 0;
-}
-
-void clearFullMap(map *m) {
   mapNode *ptr = m->head;
   while(ptr) {
     mapNode *prev = ptr;
@@ -46,10 +53,10 @@ void put(map *m, char *key, uint32_t value) {
     ptr->value = value;
   } else {
     // if not found
-    mapNode *pNewNode   = malloc(sizeof(mapNode));
-    pNewNode->next  = NULL;
-    pNewNode->key   = key;
-    pNewNode->value = value;
+    mapNode *pNewNode = malloc(sizeof(mapNode));
+    pNewNode->next    = NULL;
+    pNewNode->key     = copy(key);
+    pNewNode->value   = value;
     if (!ptr) {
       // no elemnts in mapping
       m->head = pNewNode;
@@ -88,13 +95,6 @@ void printMap(map m) {
 // --------------------------VECTOR--------------------------------
 void clearVector(vector *v) {
   while (!isEmptyVector(*v)) {
-    getFront(v);
-  }
-  v->size = 0;
-}
-
-void clearFullVector(vector *v) {
-  while (!isEmptyVector(*v)) {
     free(getFront(v));
   }
   v->size = 0;
@@ -108,7 +108,7 @@ vector constructVector(void) {
 void putFront(vector *v, char *value) {
   vectorNode *pNv = malloc(sizeof(vectorNode));
   pNv->previous = NULL;
-  pNv->value = value;
+  pNv->value = copy(value);
   pNv->next = NULL;
 
   if (isEmptyVector(*v)) {
@@ -125,7 +125,7 @@ void putFront(vector *v, char *value) {
 void putBack(vector *v, char *value) {
   vectorNode *pNv = malloc(sizeof(vectorNode));
   pNv->previous = NULL;
-  pNv->value = value;
+  pNv->value = copy(value);
   pNv->next = NULL;
 
   if (isEmptyVector(*v)) {
@@ -170,7 +170,6 @@ char *getFront(vector *v) {
   } else {
     v->last = NULL;
   }
-
   free(removedNode);
   (v->size)--;
 
@@ -191,7 +190,6 @@ char *getBack(vector *v) {
   } else {
     v->first = NULL;
   }
-
   free(removedNode);
   (v->size)--;
 
@@ -225,16 +223,4 @@ bool contains(vector v, char *value) {
   }
 
   return false;
-}
-
-int getTotalLengthSize(vector v) {
-  vectorNode *currentNode = v.first;
-  int total = 0;
-
-  while (currentNode) {
-    total += strlen(currentNode->value);
-    currentNode = currentNode->next;
-  }
-
-  return total;
 }
