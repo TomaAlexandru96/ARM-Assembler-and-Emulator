@@ -74,7 +74,8 @@ int getNumberOfDecimalDigits(int number) {
 
 void printPipeline(pipeline_t *pipeline) {
   printf("%s\n", "----------Pipeline----------");
-  printf("Decoded: 0x%.8x \nFetched: 0x%.8x\n", pipeline->decoded, pipeline->fetched);
+  printf("Decoded: 0x%.8x \nFetched: 0x%.8x\n", pipeline->decoded,
+                                                pipeline->fetched);
   printf("%s\n", "----------End Pipeline----------");
 }
 
@@ -287,7 +288,7 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        //Pre-indexing
        address = getEffectiveAddress(Rn, offset, U, pState);
        //Now transfer data
-       if(address > (MEM_SIZE_BYTES - 4)) {
+       if(address > (MEM_SIZE_WORDS - 4)) {
          printf("Error: Out of bounds memory access at address 0x%.8x\n",
                 address);
        } else {
@@ -297,7 +298,7 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        //Post-indexing
        address = pState->regs[Rn];
        //Transfer data
-       if(address > (MEM_SIZE_BYTES - 4)) {
+       if(address > (MEM_SIZE_WORDS - 4)) {
          printf("Error: Out of bounds memory access at address 0x%.8x\n",
                 address);
        } else {
@@ -313,14 +314,12 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        //Pre-indexing
        address = getEffectiveAddress(Rn, offset, U, pState);
        //Now transfer data
-       //pState->memory[address / 4] = pState->regs[Rd];
        writeToMemory(pState->regs[Rd], address, pState);
      } else {
        //Post-indexing
        //Transfer data
        address = pState->regs[Rn];
        writeToMemory(pState->regs[Rd], address, pState);
-       //pState->memory[address / 4] = pState->regs[Rd];
        //Then set base register
        pState->regs[Rn] = getEffectiveAddress(Rn, offset, U, pState);
      }
@@ -482,7 +481,7 @@ void memoryLoader(FILE *file, proc_state_t *pState) {
   if(!file) {
     fprintf(stderr, "%s\n", "File not found");
   }
-  fread(pState->memory, sizeof(uint32_t), MEM_SIZE_BYTES, file);
+  fread(pState->memory, sizeof(uint32_t), MEM_SIZE_WORDS, file);
   fclose(file);
   //load every instruction in binary file into memory
   //Instructions stored in Big Endian, ready to be decoded
@@ -490,7 +489,7 @@ void memoryLoader(FILE *file, proc_state_t *pState) {
 
 void printMemory(int memory[]) {
    printf("%s", "Non-zero memory:\n");
-   for(int i = 0; i < MEM_SIZE_BYTES; i += 4) {
+   for(int i = 0; i < MEM_SIZE_WORDS; i += 4) {
      if(memory[i / 4]) {
        printf("0x%.8x: 0x%.8x\n", i, convertToLittleEndian(memory[i / 4]));
      }
