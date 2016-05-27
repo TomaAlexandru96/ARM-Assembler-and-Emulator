@@ -288,22 +288,13 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        //Pre-indexing
        address = getEffectiveAddress(Rn, offset, U, pState);
        //Now transfer data
-       if(address > (MEM_SIZE_WORDS - 4)) {
-         printf("Error: Out of bounds memory access at address 0x%.8x\n",
-                address);
-       } else {
-          pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
-       }
+
+       executeLoadFromMemoryGPIO(pState, Rd, address);
      } else {
        //Post-indexing
        address = pState->regs[Rn];
        //Transfer data
-       if(address > (MEM_SIZE_WORDS - 4)) {
-         printf("Error: Out of bounds memory access at address 0x%.8x\n",
-                address);
-       } else {
-          pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
-       }
+       executeLoadFromMemoryGPIO(pState, Rd, address);
        //Then set base register
        pState->regs[Rn] = getEffectiveAddress(Rn,offset, U, pState);
      }
@@ -324,6 +315,40 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        pState->regs[Rn] = getEffectiveAddress(Rn, offset, U, pState);
      }
   }
+}
+
+
+void executeLoadFromMemoryGPIO(proc_state_t *pState, int Rd, int address) {
+  switch (address) {
+    case GPIOo_9_ADDRESS:
+                  printf("%s\n",
+                  "One GPIO pin from 0 to 9 has been accessed");
+                  pState->regs[Rd] = GPIOo_9_ADDRESS;
+                  break;
+    case GPIO10_19_ADDRESS:
+                    printf("%s\n",
+                    "One GPIO pin from 10 to 19 has been accessed");
+                    pState->regs[Rd] = GPIO10_19_ADDRESS;
+                    break;
+    case GPIO20_29_ADDRESS:
+                    printf("%s\n",
+                    "One GPIO pin from 20 to 29 has been accessed");
+                    pState->regs[Rd] = GPIO20_29_ADDRESS;
+                    break;
+    default: loadMemoryContentIntoRegister(pState, Rd, address);
+
+  }
+
+}
+
+void loadMemoryContentIntoRegister(proc_state_t *pState, int Rd, int address) {
+  if(address > (MEM_SIZE_WORDS - 4)) {
+    printf("Error: Out of bounds memory access at address 0x%.8x\n",
+           address);
+  } else {
+     pState->regs[Rd] = getMemoryContentsAtAddress(pState, address);
+  }
+
 }
 
 

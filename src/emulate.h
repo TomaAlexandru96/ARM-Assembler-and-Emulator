@@ -9,6 +9,11 @@
 #define INDEX_CPSR 16
 #define INDEX_SP 13
 #define INDEX_LR 14
+#define GPIO20_29_ADDRESS 0x20200008
+#define GPIO10_19_ADDRESS 0x20200004
+#define GPIOo_9_ADDRESS 0x20200000
+#define GPIO_OUTPUT_OFF 0x20200028
+#define GPIO_OUTPUT_ON 0x2020001C
 
 /*-------------TypeDefinitions------------------*/
 typedef struct proc_state proc_state_t;
@@ -75,6 +80,13 @@ void executeOperation(proc_state_t *pState, int Rdest,
 
 int getEffectiveAddress(int Rn, int offset, int U, proc_state_t *pState);
 /*Returns byte address in memory where value is stored into/ loaded from*/
+
+void executeLoadFromMemoryGPIO(proc_state_t *pState, int Rd, int address);
+
+void loadMemoryContentIntoRegister(proc_state_t *pState, int Rd, int address);
+  /*Load Rd with memory[address]. Helper function
+    for executeLoadFromMemoryGPIO*/
+
 
 int getMemoryContentsAtAddress(proc_state_t *pState, int address);
 /*Perfoms a memory read, selecting bytes starting from the passed byte address*/
