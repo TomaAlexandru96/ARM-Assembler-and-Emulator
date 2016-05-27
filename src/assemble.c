@@ -25,7 +25,7 @@ uint32_t decode(vector *tokens, uint32_t instructionNumber,
                 map labelMapping, vector *errorVector, char *ln);
 uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln);
 uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln);
-int checkRegMult(vector *tokens, char *multType,
+bool checkRegMult(vector *tokens, char *multType,
                 vector *errorVector, char *ln);
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *errorVector,
                                   char *ln);
@@ -34,6 +34,7 @@ uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
 void throwUndeifinedError(char *name, vector *errorVector, char *ln);
 void throwLabelError(char *name, vector *errorVector, char *ln);
 void throwExpressionError(char *expression, vector *errorVector, char *ln);
+void throwRegisterError(char *name, vector *errorVector, char *ln);
 void throwExpressionMissingError(char *ins, vector *errorVector, char *ln);
 bool isExpression(char *token);
 bool isInstruction(char *token);
@@ -300,86 +301,93 @@ uint32_t decodeMultiply(vector *tokens,
   setCond(&instr, ALWAYS_CONDITION);
 
   uint32_t rd = 0;
-  uint32_t rn = 0;
-  uint32_t rs = 0;
   uint32_t rm = 0;
+  uint32_t rs = 0;
+  uint32_t rn = 0;
 
   // "mul" instr case
   if(!strcmp(multType, "mul")) {
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rd = getDec(token + 1) << 0x10;
+      free(token);
     }
-    // set rd
-    instr |= rd;
 
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rm = getDec(token + 1);
+      free(token);
     }
-    // set rm
-    instr |= rm;
 
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rs = getDec(token + 1) << 0x8;
+      free(token);
     }
-    // set rs
-    instr |= rs;
   }
 
   // "mla" instr case
   if(!strcmp(multType, "mla")) {
     //set bit 21 (Accumulator)
-    instr = 1 << 0x15;
+    instr = 0x1 << 0x15;
 
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rd = getDec(token + 1) << 0x10;
+      free(token);
     }
-    // set rd
-    instr |= rd;
 
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rm = getDec(token + 1);
+      free(token);
     }
-    // set rm
-    instr |= rm;
 
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rs = getDec(token + 1) << 0x8;
+      free(token);
     }
-    // set rs
-    instr |= rs;
 
-    if(!checkRegMult(tokens, multType, errorVector, ln)) {
+
+    if(checkRegMult(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rn = getDec(token + 1) << 0xC;
+      free(token);
     }
-    // set rn
-    instr |= rn;
   }
+
+  // set rd
+  instr |= rd;
+
+  // set rm
+  instr |= rm;
+
+  // set rs
+  instr |= rs;
+
+  // set rn
+  instr |= rn;
 
   return instr;
 }
 
 // helper function to check if incoming token is a valid register
-int checkRegMult(vector *tokens, char *multType,
+bool checkRegMult(vector *tokens, char *multType,
                 vector *errorVector, char *ln) {
   char *reg = (char *) peekFront(*tokens);
   if(!reg) {
     throwExpressionMissingError(multType, errorVector, ln);
     free(multType);
-    return -1;
+    return false;
   }
 
-  if (!isRegister(reg)) {
-    //throw Register error
-    return -1;
+  if (getType(reg) != REGISTER) {
+    throwRegisterError(reg, errorVector, ln);
+    return false;
   }
-  return 0;
+  return true;
 }
 
 uint32_t decodeSingleDataTransfer(vector *tokens,
@@ -658,6 +666,17 @@ void throwExpressionError(char *name, vector *errorVector, char *ln) {
   strcpy(error, "[");
   strcat(error, ln);
   strcat(error, "] The expression ");
+  strcat(error, name);
+  strcat(error, " is invalid.");
+  putBack(errorVector, error);
+  free(error);
+}
+
+void throwRegisterError(char *name, vector *errorVector, char *ln) {
+  char *error = malloc(200);
+  strcpy(error, "[");
+  strcat(error, ln);
+  strcat(error, "] The register ");
   strcat(error, name);
   strcat(error, " is invalid.");
   putBack(errorVector, error);
