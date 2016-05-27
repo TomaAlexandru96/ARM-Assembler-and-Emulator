@@ -237,10 +237,9 @@ uint32_t decodeDataProcessing(vector *tokens,
       free(instruction);
       return -1;
     }
-    getFront(tokens);
 
     rd = getDec(token + 1) << 0xC;
-    free(token);
+    free(getFront(tokens));
   }
 
   if (dataType != 1) {
@@ -251,10 +250,9 @@ uint32_t decodeDataProcessing(vector *tokens,
       free(instruction);
       return -1;
     }
-    getFront(tokens);
 
     rn = getDec(token + 1) << 0x10;
-    free(token);
+    free(getFront(tokens));
   }
 
   token = peekFront(*tokens);
@@ -263,7 +261,6 @@ uint32_t decodeDataProcessing(vector *tokens,
     free(instruction);
     return -1;
   }
-  getFront(tokens);
 
   if (getType(token) == EXPRESSION) {
     // decode expression and set bit i to 1
@@ -273,7 +270,7 @@ uint32_t decodeDataProcessing(vector *tokens,
     // we have a register
     operand2 = getDec(token + 1);
   }
-  free(token);
+  free(getFront(tokens));
 
   if (dataType == 2) {
     // we have third type of instruction
