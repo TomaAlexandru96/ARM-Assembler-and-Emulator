@@ -8,6 +8,19 @@ int main(int argc, char **argv) {
   }
   FILE *file = fopen(argv[1], "rb");
   proc_state_t pState;
+  //Initialisation of pState
+  pState.NEG = 0;
+  pState.ZER = 0;
+  pState.CRY = 0;
+  pState.OVF = 0;
+  pState.PC = 0;
+  for(int i = 0; i < MEM_SIZE_WORDS; i++) {
+    pState.memory[i] = 0;
+  }
+  for(int i = 0; i < NUMBER_REGS; i++) {
+    pState.regs[i] = 0;
+  }
+  //End Initialisation
   memoryLoader(file, &pState);
   procCycle(&pState);
 
@@ -288,7 +301,6 @@ void executeSDataTransfer(int instruction, proc_state_t *pState) {
        //Pre-indexing
        address = getEffectiveAddress(Rn, offset, U, pState);
        //Now transfer data
-
        executeLoadFromMemoryGPIO(pState, Rd, address);
      } else {
        //Post-indexing
@@ -362,20 +374,76 @@ int getEffectiveAddress(int Rn, int offset, int U, proc_state_t *pState) {
 
 
 void writeToMemory(int word, int startByteAddress, proc_state_t *pState) {
+  // Declaring heap allocated arrays that hold the state of the gpio pins
+  /*gpioPhysical[0...2] is the representation of mem[0x2020 0000...0x2020 0008]
+   *and holds control bits for each pin in the intervals 0-9, 10-19, 20-29resp*/
+
+  /* gpioOutputOnOff holds two addresses:
+   * 0 |-> 0x2020 0028 OFF
+     1 |-> 0x2020 001C ON
+   */
+
+  int *gpioPhysical = (int *) malloc(3 * sizeof(int));
+  int *gpioOutputOnOff = (int *) malloc(2 * sizeof(int));
+  if(gpioPhysical == NULL || gpioOutputOnOff == NULL) {
+    perror("malloc");
+    exit(EXIT_FAILURE);
+  }
   //word written to memory starting from startByteAddress
   int byte[4] = {getByteBigEndian(word, 3),
                  getByteBigEndian(word, 2),
                  getByteBigEndian(word, 1),
                  getByteBigEndian(word, 0)};
+  int *byteArray = byte;
   //Got every byte of the number to be written to memory
+  //  int changedPin = -1;
+  //changedPin is the index of the pin that has been set as output
+  switch(startByteAddress) {
+   case GPIOo_9_ADDRESS:
+                        printf("%s\n",
+                        "One GPIO pin from 0 to 9 has been accessed");
+                        gpioPhysical[0] = word;
+  //                      changedPin = getChangedOutputPin(word, 0);
+                        break;
+   case GPIO10_19_ADDRESS:
+                        printf("%s\n",
+                        "One GPIO pin from 10 to 19 has been accessed");
+                        gpioPhysical[1] = word;
+    //                    changedPin = getChangedOutputPin(word, 1);
+                        break;
+   case GPIO20_29_ADDRESS:
+                        printf("%s\n",
+                        "One GPIO pin from 20 to 29 has been accessed");
+                        gpioPhysical[2] = word;
+      //                  changedPin = getChangedOutputPin(word, 2);
+                        break;
+   case GPIO_OUTPUT_ON: printf("%s\n", "PIN ON");
+                        gpioOutputOnOff[0] = word;
+                        break;
+
+   case GPIO_OUTPUT_OFF: printf("%s\n", "PIN OFF");
+                         gpioOutputOnOff[1] = word;
+                         break;
+
+   default:
+           fillByteAddress(startByteAddress, pState, byteArray);
+  }
+  free(gpioPhysical);
+  free(gpioOutputOnOff);
+}
+
+void fillByteAddress(int startByteAddress, proc_state_t *pState, int *byteArr) {
+  //Starting from mem[startByteAddress], function replaces existing bytes
+  //with bytes from the array referenced by byteArr
   for(int i = 0; i < 4; i++) {
     pState->memory[startByteAddress / 4] =
     setByte(pState->memory[startByteAddress / 4],
             3 - startByteAddress % 4,
-            byte[i]);
+            byteArr[i]);
             startByteAddress++;
   }
 }
+
 
 int getMemoryContentsAtAddress(proc_state_t *pState, int address) {
   int byteAddress = address;

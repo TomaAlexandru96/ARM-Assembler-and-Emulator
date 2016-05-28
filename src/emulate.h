@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#define MEM_SIZE_WORDS 16384 // 2 ^ 14 instruction addresses
+#define MEM_SIZE_WORDS 16384 // 2 ^ 14 word addresses
 #define NUMBER_REGS 17
 #define INDEX_PC 15
 #define INDEX_CPSR 16
@@ -93,6 +93,9 @@ int getMemoryContentsAtAddress(proc_state_t *pState, int address);
 
 void writeToMemory(int word, int startByteAddress, proc_state_t *pState);
 /*Writes to memory starting at specified byte address*/
+
+void fillByteAddress(int byteAddress, proc_state_t *pState, int *byteArray);
+/*Write each byte in array to memory starting at byteAddress*/
 
 void printMemory(int memory[]);
 /*Prints all nonzero memory contents*/
