@@ -11,7 +11,7 @@
 
 uint32_t firstPass(FILE *input, map *labelMapping,
               vector *errorVector, uint32_t *instructionsNumber);
-void secondPass(uint32_t linesNumber, uint32_t instructions[],
+void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
               vector *errorVector, FILE *input, map labelMapping);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, char *delimiters);
@@ -21,21 +21,21 @@ void setCond(uint32_t *x, char *cond);
 * Converts unsigned int to string
 **/
 char *uintToString(uint32_t num);
-uint32_t decode(vector *tokens, uint32_t instructionNumber,
+uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
                 map labelMapping, vector *errorVector, char *ln);
 uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln);
 uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln);
 int checkRegMult(vector *tokens, char *multType,
                 vector *errorVector, char *ln);
-uint32_t decodeSingleDataTransfer(vector *tokens, vector *errorVector,
-                                  char *ln);
+uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
+                vector *errorVector, char *ln);
 uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
                 map labelMapping, vector *errorVector, char *ln);
 void throwUndeifinedError(char *name, vector *errorVector, char *ln);
 void throwLabelError(char *name, vector *errorVector, char *ln);
 void throwExpressionError(char *expression, vector *errorVector, char *ln);
 void throwExpressionMissingError(char *ins, vector *errorVector, char *ln);
-bool isExpression(char *token);
+typeEnum isExpression(char *token);
 bool isInstruction(char *token);
 bool isLabel(char *token);
 bool isRegister(char *token);
@@ -71,8 +71,7 @@ int main(int argc, char **argv) {
   * memmory addresses (fills labelMapping)
   **/
   fillAll();
-  uint32_t linesNumber = firstPass(input, &labelMapping,
-                &errorVector, &instructionsNumber);
+  firstPass(input, &labelMapping, &errorVector, &instructionsNumber);
   /**
   * Make second pass now and replace all labels with their mapping
   * also decode all instructions and trow errors if any
@@ -80,7 +79,7 @@ int main(int argc, char **argv) {
 
   uint32_t instructions[instructionsNumber];
   rewind(input); // reset file pointer to the beginning of the file
-  secondPass(linesNumber, instructions,
+  secondPass(&instructionsNumber, instructions,
                 &errorVector, input, labelMapping);
 
   // clear
@@ -138,6 +137,15 @@ uint32_t firstPass(FILE *input, map *labelMapping,
       }
 
       if (getType(token) == INSTRUCTION) {
+        // if the instruction is a ldr instruction and the <=expression>
+        // is more than 0xFF we need to store the value at the bottom of the
+        // binary file so we will increment the instructionsNumber
+        // we will assume that the argument is more than 0xFF and if it
+        // not then we will just not use the remaining space
+        if (!strcmp(token, "ldr")) {
+          (*instructionsNumber)++;
+        }
+
         // if we found a valid instruction
         // map all current unmapped labels
         // to this current memmory location
@@ -166,11 +174,12 @@ uint32_t firstPass(FILE *input, map *labelMapping,
   return lineNumber - 1;
 }
 
-void secondPass(uint32_t linesNumber, uint32_t instructions[],
+void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
               vector *errorVector, FILE *input, map labelMapping) {
   char buffer[MAX_LINE_LENGTH];
   uint32_t PC = 0;
   uint32_t ln = 1;
+  vector addresses = constructVector();
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
     vector tokens = tokenise(buffer, DELIMITERS);
@@ -180,30 +189,40 @@ void secondPass(uint32_t linesNumber, uint32_t instructions[],
       if (getType(token) == INSTRUCTION) {
         // if there is a valid isntruction decode it and increase
         // instruction counter
-        instructions[PC] = decode(&tokens, PC,
+        instructions[PC] = decode(&tokens, &addresses, PC,
                           labelMapping, errorVector, lineNo);
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
         free(getFront(&tokens));
       } else {
-        // throw error because instruction is undefined
         throwUndeifinedError(token, errorVector, lineNo);
+        // throw error because instruction is undefined
         free(getFront(&tokens));
       }
     }
     ln++;
     free(lineNo);
   }
+
+  // put all ldr addresses > 0xFF at the end of the file
+  while (!isEmptyVector(addresses)) {
+    char *address = getFront(&addresses);
+    instructions[PC] = getDec(address);
+    free(address);
+    PC++;
+  }
+
+  *instructionsNumber = PC;
 }
 
-uint32_t decode(vector *tokens, uint32_t instructionNumber,
+uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
             map labelMapping, vector *errorVector, char *ln) {
   uint32_t type = *get(ALL_INSTRUCTIONS, peekFront(*tokens));
   switch (type) {
     case 0: return decodeDataProcessing(tokens, errorVector, ln);
     case 1: return decodeMultiply(tokens, errorVector, ln);
-    case 2: return decodeSingleDataTransfer(tokens, errorVector, ln);
+    case 2: return decodeSingleDataTransfer(tokens, addresses, errorVector, ln);
     case 3: return decodeBranch(tokens, instructionNumber,
                                       labelMapping, errorVector, ln);
     case 4:
@@ -256,13 +275,13 @@ uint32_t decodeDataProcessing(vector *tokens,
   }
 
   token = peekFront(*tokens);
-  if (getType(token) != EXPRESSION && getType(token) != REGISTER) {
+  if (getType(token) != EXPRESSION_TAG && getType(token) != REGISTER) {
     // throw expression error
     free(instruction);
     return -1;
   }
 
-  if (getType(token) == EXPRESSION) {
+  if (getType(token) == EXPRESSION_TAG) {
     // decode expression and set bit i to 1
     operand2 = getExpression(token, errorVector, ln);
     i = 1;
@@ -382,10 +401,81 @@ int checkRegMult(vector *tokens, char *multType,
   return 0;
 }
 
-uint32_t decodeSingleDataTransfer(vector *tokens,
+uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
                         vector *errorVector, char *ln) {
+  char *instruction = getFront(tokens);
+  uint32_t ins = 1 << 0x1A;
+  int i = 0;
+  int p = 0;
+  int u = 0;
+  int l = 0;
+  // uint32_t offset = 0;
+  int rn = 0;
+  int rd = 0;
+  char *token;
+
+  setCond(&ins, ALWAYS_CONDITION);
+
+  token = peekFront(*tokens);
+  if (getType(token) != REGISTER) {
+    // throw register error
+    free(instruction);
+    return -1;
+  }
+
+  rd = getDec(token + 1);
   free(getFront(tokens));
-  return 0;
+
+  if (!strcmp(instruction, "ldr")) {
+    // we have a load instruction
+    l = 1;
+
+    // check for register or expression
+    /*token = peekFront(*tokens);
+    if (getType(token) != EXPRESSION_EQUAL && getType(token) != REGISTER) {
+      // throw expression error
+      free(instruction);
+      return -1;
+    }
+
+    if (getType(token) == EXPRESSION_EQUAL) {
+      uint32_t address = getExpression(token, errorVector, ln);
+
+      if (address <= 0xFF) {
+        // interpret as move instruction
+        //putFront(tokens, "mov");
+        //free(instruction);
+        //return decodeDataProcessing(tokens, errorVector, ln);
+      } else {
+        // interpret as normal
+        // putBack(addresses, token + 1);
+      }
+    }
+    free(token);*/
+  } else {
+    // we have a store instruction
+  }
+
+  // set bit i 25
+  ins |= i << 0x19;
+
+  // set bit p 24
+  ins |= p << 0x18;
+
+  // set bit u 23
+  ins |= u << 0x17;
+
+  // set bit p 20
+  ins |= l << 0x14;
+
+  // set rn
+  ins |= rn << 0x10;
+
+  // set rd
+  ins |= rd << 0xC;
+
+  free(instruction);
+  return ins;
 }
 
 uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
@@ -488,13 +578,13 @@ bool isLabel(char *token) {
   return token[strlen(token) - 1] == ':';
 }
 
-bool isExpression(char *token) {
+typeEnum isExpression(char *token) {
   if (!strlen(token)) {
-    return false;
+    return UNDEFINED;
   }
 
-  if (token[0] != '#') {
-    return false;
+  if (token[0] != '#' && token[0] != '=') {
+    return UNDEFINED;
   }
 
   if (strlen(token) >= 4 && token[1] == '0' &&token[2] == 'x') {
@@ -502,19 +592,19 @@ bool isExpression(char *token) {
     for (int i = 3; token[i] != '\0'; i++) {
       if ((token[i] < '0' || token[i] > '9') &&
                     (token[i] < 'A' || token[i] > 'F')) {
-        return false;
+        return UNDEFINED;
       }
     }
   } else {
     // we might have a decimal value
     for (int i = 1; token[i] != '\0'; i++) {
       if (token[i] < '0' || token[i] > '9') {
-        return false;
+        return UNDEFINED;
       }
     }
   }
 
-  return true;
+  return token[0] == '#' ? EXPRESSION_TAG : EXPRESSION_EQUAL;
 }
 
 bool isInstruction(char *token) {
@@ -526,8 +616,8 @@ typeEnum getType(char *token) {
     return LABEL;
   }
 
-  if (isExpression(token)) {
-    return EXPRESSION;
+  if (isExpression(token) != UNDEFINED) {
+    return isExpression(token);
   }
 
   if (isInstruction(token)) {
@@ -674,24 +764,3 @@ void throwExpressionMissingError(char *ins, vector *errorVector, char *ln) {
   putBack(errorVector, error);
   free(error);
 }
-
-// ---------------------ADT TESTS------------------------------
-/*vector x = constructVector();
-
-putFront(&x, "Hello1");
-putFront(&x, "Hello2");
-putFront(&x, "Hello3");
-printVector(x);
-clearVector(&x);
-printVector(x);
-
-map m = constructMap();
-
-put(&m, "string1", 20);
-put(&m, "string3", 15);
-put(&m, "string1", 15);
-put(&m, "string2", 28);
-
-printMap(m, 0);
-clearMap(&m);
-printMap(m, 0);*/

@@ -28,7 +28,8 @@ map fillDataToType(void);
 void fillAll(void);
 void freeAll(void);
 // --------------------------ENUMS-------------------------------
-typedef enum {INSTRUCTION, LABEL, EXPRESSION, REGISTER, UNDEFINED} typeEnum;
+typedef enum {INSTRUCTION, LABEL, EXPRESSION_TAG,
+              EXPRESSION_EQUAL, REGISTER, UNDEFINED} typeEnum;
 
 // --------------------GLOBAL VARIABLES--------------------------
 map DATA_OPCODE;
