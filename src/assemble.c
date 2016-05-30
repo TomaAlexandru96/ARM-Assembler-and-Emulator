@@ -209,7 +209,7 @@ void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
   // put all ldr addresses > 0xFF at the end of the file
   while (!isEmptyVector(addresses)) {
     char *address = getFront(&addresses);
-    instructions[PC] = getDec(address);
+    instructions[PC] = getExpression(address, NULL, 0);
     free(address);
     PC++;
   }
@@ -400,7 +400,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   int p = 0;
   int u = 0;
   int l = 0;
-  // uint32_t offset = 0;
+  uint32_t offset = 0;
   int rn = 0;
   int rd = 0;
   char *token;
@@ -422,7 +422,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
     l = 1;
 
     // check for register or expression
-    /*token = peekFront(*tokens);
+    token = peekFront(*tokens);
     if (getType(token) != EXPRESSION_EQUAL && getType(token) != REGISTER) {
       // throw expression error
       free(instruction);
@@ -434,15 +434,13 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
 
       if (address <= 0xFF) {
         // interpret as move instruction
-        //putFront(tokens, "mov");
-        //free(instruction);
-        //return decodeDataProcessing(tokens, errorVector, ln);
+        offset = address;
       } else {
         // interpret as normal
-        // putBack(addresses, token + 1);
+        putBack(addresses, token);
       }
     }
-    free(token);*/
+    free(getFront(tokens));
   } else {
     // we have a store instruction
   }
@@ -464,6 +462,9 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
 
   // set rd
   ins |= rd << 0xC;
+
+  // set offset
+  ins |= offset;
 
   free(instruction);
   return ins;
@@ -634,22 +635,24 @@ uint32_t getExpression(char *exp, vector *errorVector, char *ln) {
     res = getDec(exp + 1);
   }
 
-  // check if exp can be roatated to a 8 bit imediate value
-  while (res >= 0x100 && rotations <= 30) {
-    char bits31_30 = (res & 0xC0000000) >> (INSTRUCTION_SIZE - 2);
-    res <<= 2;
-    res |= bits31_30;
-    rotations += 2;
-  }
+  if (exp[0] == '#') {
+    // check if exp can be roatated to a 8 bit imediate value
+    while (res >= 0x100 && rotations <= 30) {
+      char bits31_30 = (res & 0xC0000000) >> (INSTRUCTION_SIZE - 2);
+      res <<= 2;
+      res |= bits31_30;
+      rotations += 2;
+    }
 
-  if (rotations > 30 || rotations % 2 != 0) {
-    // throw an error
-    // number can't be represented
-    throwExpressionError(exp, errorVector, ln);
-    return -1;
-  }
+    if (rotations > 30 || rotations % 2 != 0) {
+      // throw an error
+      // number can't be represented
+      throwExpressionError(exp, errorVector, ln);
+      return -1;
+    }
 
-  res |= ((rotations / 2) << 0x8);
+    res |= ((rotations / 2) << 0x8);
+  }
 
   return res;
 }
