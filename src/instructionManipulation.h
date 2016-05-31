@@ -11,6 +11,9 @@
 #define MASK_BYTE1_BE 0xFF0000
 #define MASK_BYTE2_BE 0xFF00
 #define MASK_BYTE3_BE 0xFF
+#define BYTE0_LSB_INDEX 24 //order according to big endian byte addresses 
+#define BYTE1_LSB_INDEX 16
+#define BYTE2_LSB_INDEX 8
 
 int extractIDbits(int instruction);
 /*Returns instruction ID bits(not unique for all instructions). Used to
