@@ -478,51 +478,46 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   rd = getDec(token + 1);
   rdName = getFront(tokens);
 
+  // check for register or expression
+  token = peekFront(*tokens);
+  if (token && token[0] == '[') {
+    // we have indexed address
+    p = getAddress(tokens, &rn, &offset);
+    if (offset < 0) {
+      offset = abs(offset);
+      u = 0;
+    }
+  } else {
+    p = 1;
+    if (getType(token) != EXPRESSION_EQUAL) {
+      // throw expression error
+      free(rdName);
+      free(instruction);
+      return -1;
+    }
+  }
+
   if (!strcmp(instruction, "ldr")) {
     // we have a load instruction
     l = 1;
+    if (getType(token) == EXPRESSION_EQUAL) {
+      uint32_t address = getExpression(token, errorVector, ln);
 
-    // check for register or expression
-    token = peekFront(*tokens);
-    if (token && token[0] == '[') {
-      // we have indexed address
-      p = getAddress(tokens, &rn, &offset);
-      printf("%d\n", offset);
-      if (offset < 0) {
-        printf("%s\n", "INTRA");
-        offset = abs(offset);
-        u = 0;
-      }
-    } else {
-      p = 1;
-      if (getType(token) != EXPRESSION_EQUAL && getType(token) != REGISTER) {
-        // throw expression error
+      if (address <= 0xFF) {
+        // interpret as move instruction
+        putFront(tokens, rdName);
+        putFront(tokens, "mov");
         free(rdName);
         free(instruction);
-        return -1;
+        return decodeDataProcessing(tokens, errorVector, ln);
+      } else {
+        // interpret as normal
+        putBack(addresses, token);
+        int addressLocation = instructionsNumber + addresses->size - 1;
+        offset = (addressLocation - instructionNumber - 2) * MEMORY_SIZE;
       }
-
-      if (getType(token) == EXPRESSION_EQUAL) {
-        uint32_t address = getExpression(token, errorVector, ln);
-
-        if (address <= 0xFF) {
-          // interpret as move instruction
-          putFront(tokens, rdName);
-          putFront(tokens, "mov");
-          free(rdName);
-          free(instruction);
-          return decodeDataProcessing(tokens, errorVector, ln);
-        } else {
-          // interpret as normal
-          putBack(addresses, token);
-          int addressLocation = instructionsNumber + addresses->size - 1;
-          offset = (addressLocation - instructionNumber - 2) * MEMORY_SIZE;
-        }
-      }
-      free(getFront(tokens));
     }
-  } else {
-    // we have a store instruction
+    free(getFront(tokens));
   }
 
   // set bit i 25
