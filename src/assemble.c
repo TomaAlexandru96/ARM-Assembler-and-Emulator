@@ -9,8 +9,8 @@
 #define ALWAYS_CONDITION ""
 #define BRANCH_OFFSET_SIZE  26
 
-uint32_t firstPass(FILE *input, map *labelMapping,
-              vector *errorVector, uint32_t *instructionsNumber);
+uint32_t firstPass(FILE *input, map *labelMapping, vector *errorVector,
+              uint32_t *instructionsNumber, uint32_t *ldrCount);
 void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
               vector *errorVector, FILE *input, map labelMapping);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
@@ -22,13 +22,14 @@ void setCond(uint32_t *x, char *cond);
 **/
 char *uintToString(uint32_t num);
 uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
-                map labelMapping, vector *errorVector, char *ln);
+  uint32_t instructionsNumber, map labelMapping, vector *errorVector, char *ln);
 uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln);
 uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln);
 bool checkRegMult(vector *tokens, char *multType,
                 vector *errorVector, char *ln);
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
-                uint32_t instructionNumber, vector *errorVector, char *ln);
+                uint32_t instructionNumber, uint32_t instructionsNumber,
+                vector *errorVector, char *ln);
 uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
                 map labelMapping, vector *errorVector, char *ln);
 void throwUndefinedError(char *name, vector *errorVector, char *ln);
@@ -73,13 +74,14 @@ int main(int argc, char **argv) {
   * memmory addresses (fills labelMapping)
   **/
   fillAll();
-  firstPass(input, &labelMapping, &errorVector, &instructionsNumber);
+  uint32_t ldrCount = 0;
+  firstPass(input, &labelMapping, &errorVector, &instructionsNumber, &ldrCount);
   /**
   * Make second pass now and replace all labels with their mapping
   * also decode all instructions and throw errors if any
   **/
 
-  uint32_t instructions[instructionsNumber];
+  uint32_t instructions[instructionsNumber + ldrCount];
   rewind(input); // reset file pointer to the beginning of the file
   secondPass(&instructionsNumber, instructions,
                 &errorVector, input, labelMapping);
@@ -109,10 +111,11 @@ int main(int argc, char **argv) {
   exit(EXIT_SUCCESS);
 }
 
-uint32_t firstPass(FILE *input, map *labelMapping,
-                  vector *errorVector, uint32_t *instructionsNumber) {
+uint32_t firstPass(FILE *input, map *labelMapping, vector *errorVector,
+                    uint32_t *instructionsNumber, uint32_t *ldrCount) {
   uint32_t lineNumber = 1;
   uint32_t currentMemoryLocation = 0;
+  *ldrCount = 0;
   vector currentLabels = constructVector();
   char buffer[MAX_LINE_LENGTH];
 
@@ -141,11 +144,11 @@ uint32_t firstPass(FILE *input, map *labelMapping,
       if (getType(token) == INSTRUCTION) {
         // if the instruction is a ldr instruction and the <=expression>
         // is more than 0xFF we need to store the value at the bottom of the
-        // binary file so we will increment the instructionsNumber
-        // we will assume that the argument is more than 0xFF and if it
+        // binary file
+        // we will assume that the argument is more than 0xFF and if it is
         // not then we will just not use the remaining space
         if (!strcmp(token, "ldr")) {
-          (*instructionsNumber)++;
+          (*ldrCount)++;
         }
 
         // if we found a valid instruction
@@ -191,8 +194,8 @@ void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
       if (getType(token) == INSTRUCTION) {
         // if there is a valid isntruction decode it and increase
         // instruction counter
-        instructions[PC] = decode(&tokens, &addresses, PC,
-                          labelMapping, errorVector, lineNo);
+        instructions[PC] = decode(&tokens, &addresses, PC, *instructionsNumber,
+                      labelMapping, errorVector, lineNo);
         PC++;
       } else if (getType(token) == LABEL) {
         // we have a label so we just remove it
@@ -219,13 +222,14 @@ void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
 }
 
 uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
-            map labelMapping, vector *errorVector, char *ln) {
+                uint32_t instructionsNumber, map labelMapping,
+                vector *errorVector, char *ln) {
   uint32_t type = *get(ALL_INSTRUCTIONS, peekFront(*tokens));
   switch (type) {
     case 0: return decodeDataProcessing(tokens, errorVector, ln);
     case 1: return decodeMultiply(tokens, errorVector, ln);
     case 2: return decodeSingleDataTransfer(tokens, addresses,
-                                      instructionNumber, errorVector, ln);
+                        instructionNumber, instructionsNumber, errorVector, ln);
     case 3: return decodeBranch(tokens, instructionNumber,
                                       labelMapping, errorVector, ln);
     case 4:
@@ -452,7 +456,8 @@ int getAddress(vector *tokens, int *rn, uint32_t *offset) {
 }
 
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
-                  uint32_t instructionNumber, vector *errorVector, char *ln) {
+                uint32_t instructionNumber, uint32_t instructionsNumber,
+                vector *errorVector, char *ln) {
   char *instruction = getFront(tokens);
   char *rdName;
   uint32_t ins = 1 << 0x1A;
@@ -508,7 +513,8 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
         } else {
           // interpret as normal
           putBack(addresses, token);
-          // offset = instrcutionNumber + addresses.size;
+          int addressLocation = instructionsNumber + addresses->size - 1;
+          offset = (addressLocation - instructionNumber - 2) * MEMORY_SIZE;
         }
       }
       free(getFront(tokens));
