@@ -27,9 +27,7 @@ bool isMult(int instruction) {
 
 int extractIDbits(int instruction) {
   int mask = 0xC000000;
-  instruction =  instruction & mask;
-  //call by value, so the decoded instruction will not change
-  return instruction >> 26;
+  return (instruction & mask) >> 26;
 }
 //-----------------------------------------------------------------------------
 
@@ -122,30 +120,22 @@ int getRm(int instruction) {
 
 int getSBit(int instruction) {
    int maskS20 = 0x100000;
-   instruction = instruction & maskS20;
-   instruction = instruction >> 20;
-   return instruction;
+   return (instruction & maskS20) >> 20;
 }
 
 int getIBit(int instruction) {
   int maskI25 = 0x2000000;
-  instruction = instruction & maskI25;
-  instruction = instruction >> 25;
-  return instruction;
+  return (instruction & maskI25) >> 25;
 }
 
 int getRn(int instruction) {
    int maskRn = 0xF0000;
-   instruction = instruction & maskRn;
-   instruction = instruction >> 16;
-   return instruction;
+   return (instruction & maskRn) >> 16;
 }
 
 int getRdest(int instruction) {
    int maskRdest = 0xF000;
-   instruction = instruction & maskRdest;
-   instruction = instruction >> 12;
-   return instruction;
+   return (instruction & maskRdest) >> 12;
 }
 //------------------------------------------------------------------------------
 
@@ -153,9 +143,9 @@ int getRdest(int instruction) {
 int setByte(int word, int index, int newByte) {
   // word indexed as in big endian {0, 1, 2, 3}
   switch (index) {
-    case 0: return (0x00FFFFFF & word) | (newByte << 24);
-    case 1: return (0xFF00FFFF & word) | (newByte << 16);
-    case 2: return (0xFFFF00FF & word) | (newByte << 8);
+    case 0: return (0x00FFFFFF & word) | (newByte << BYTE0_LSB_INDEX);
+    case 1: return (0xFF00FFFF & word) | (newByte << BYTE1_LSB_INDEX);
+    case 2: return (0xFFFF00FF & word) | (newByte << BYTE2_LSB_INDEX);
     case 3: return (0XFFFFFF00 & word) | newByte;
     default: return -1;
   }
@@ -163,9 +153,9 @@ int setByte(int word, int index, int newByte) {
 
 int getByteBigEndian(int content, int index) {
   switch (index) {
-    case 0: return (content & MASK_BYTE0_BE) >> 24;
-    case 1: return (content & MASK_BYTE1_BE) >> 16;
-    case 2: return (content & MASK_BYTE2_BE) >> 8;
+    case 0: return (content & MASK_BYTE0_BE) >> BYTE0_LSB_INDEX;
+    case 1: return (content & MASK_BYTE1_BE) >> BYTE1_LSB_INDEX;
+    case 2: return (content & MASK_BYTE2_BE) >> BYTE2_LSB_INDEX;
     case 3: return (content & MASK_BYTE3_BE);
     default: return -1;
   }
@@ -250,14 +240,12 @@ int getOffset(int instruction) {
 
 //------------------------------------------------------------------------------
 
-
 //--------------General Helper Functions Execution------------------------------
 uint8_t getCond(int instruction) {
   int mask = 0xF0000000;
   uint8_t cond;
   uint8_t maskLS4 = 0xF;
-  instruction = instruction & mask;
-  instruction = instruction >> 28;
+  instruction = (instruction & mask) >> 28;
   cond = (uint8_t) (instruction & maskLS4);
   return cond;
 }

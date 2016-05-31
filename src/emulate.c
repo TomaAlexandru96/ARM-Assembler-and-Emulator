@@ -7,23 +7,27 @@ int main(int argc, char **argv) {
    return EXIT_FAILURE;
   }
   FILE *file = fopen(argv[1], "rb");
-  proc_state_t pState;
+  proc_state_t *pStatePtr = (proc_state_t *) malloc(sizeof(proc_state_t));
   //Initialisation of pState
-  pState.NEG = 0;
-  pState.ZER = 0;
-  pState.CRY = 0;
-  pState.OVF = 0;
-  pState.PC = 0;
+  pStatePtr->NEG = 0;
+  pStatePtr->ZER = 0;
+  pStatePtr->CRY = 0;
+  pStatePtr->OVF = 0;
+  pStatePtr->PC = 0;
   for(int i = 0; i < MEM_SIZE_WORDS; i++) {
-    pState.memory[i] = 0;
+    pStatePtr->memory[i] = 0;
   }
   for(int i = 0; i < NUMBER_REGS; i++) {
-    pState.regs[i] = 0;
+    pStatePtr->regs[i] = 0;
   }
   //End Initialisation
-  memoryLoader(file, &pState);
-  procCycle(&pState);
-
+  if(!pStatePtr) {
+    perror("calloc");
+    exit(EXIT_FAILURE);
+  }
+  memoryLoader(file, pStatePtr);
+  procCycle(pStatePtr);
+  free(pStatePtr);
   return EXIT_SUCCESS;
 }
 
@@ -76,6 +80,8 @@ void printProcessorState(proc_state_t *pState) {
 }
 
 int getNumberOfDecimalDigits(int number) {
+  //Returns number of digits of the argument number
+  //Used for padding purposes in printProcessorState
   int counter = 0;
   while (number) {
     number /= 10;
@@ -91,8 +97,6 @@ void printPipeline(pipeline_t *pipeline) {
                                                 pipeline->fetched);
   printf("%s\n", "----------End Pipeline----------");
 }
-
-
 
 //--------------Execute DataProcessingI----------------------------------------
 void executeDataProcessing(int instruction, proc_state_t *pState) {
