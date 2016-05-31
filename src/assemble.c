@@ -42,10 +42,10 @@ bool isInstruction(char *token);
 bool isLabel(char *token);
 bool isRegister(char *token);
 typeEnum getType(char *token);
-int getAddress(vector *tokens, int *rn, uint32_t *offset);
-uint32_t getExpression(char *exp, vector *errorVector, char *ln);
-uint32_t getHex(char *exp);
-uint32_t getDec(char *exp);
+int getAddress(vector *tokens, int *rn, int32_t *offset);
+int32_t getExpression(char *exp, vector *errorVector, char *ln);
+int32_t getHex(char *exp);
+int32_t getDec(char *exp);
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -65,10 +65,7 @@ int main(int argc, char **argv) {
   uint32_t instructionsNumber;
   map labelMapping = constructMap();
   /**
-  * fill the mappings:
-  * map DATA_OPCODE;
-  * map ALL_INSTRUCTIONS;
-  * map CONDITIONS;
+  * fill the mappings
   * And after:
   * make first pass thorugh code and map all labels with their corresponidng
   * memmory addresses (fills labelMapping)
@@ -244,8 +241,7 @@ uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
   }
 }
 
-uint32_t decodeDataProcessing(vector *tokens,
-                        vector *errorVector, char *ln) {
+uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln) {
   char *instruction = getFront(tokens);
   uint32_t ins = 0;
   uint32_t opcode = *get(DATA_OPCODE, instruction) << 0x15;
@@ -322,8 +318,7 @@ uint32_t decodeDataProcessing(vector *tokens,
   return ins;
 }
 
-uint32_t decodeMultiply(vector *tokens,
-                        vector *errorVector, char *ln) {
+uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln) {
   char *multType = (char *) getFront(tokens);
   // set bits 4-7, same for mul and mla
   uint32_t instr = 0x9 << 0x4;
@@ -402,7 +397,7 @@ bool checkRegMult(vector *tokens, char *multType,
   return true;
 }
 
-int getAddress(vector *tokens, int *rn, uint32_t *offset) {
+int getAddress(vector *tokens, int *rn, int32_t *offset) {
   char *token;
   int tokenSize = 0;
   vector bracketExpr = constructVector();
@@ -439,6 +434,7 @@ int getAddress(vector *tokens, int *rn, uint32_t *offset) {
   if (token) {
     *offset = getExpression(token, NULL, 0);
     // we have pre-indexed
+    free(token);
     return 1;
   }
   free(token);
@@ -465,7 +461,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   int p = 0;
   int u = 1;
   int l = 0;
-  uint32_t offset = 0;
+  int32_t offset = 0;
   int rn = 0xf; // default rn
   int rd = 0;
   char *token;
@@ -491,6 +487,12 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
     if (token && token[0] == '[') {
       // we have indexed address
       p = getAddress(tokens, &rn, &offset);
+      printf("%d\n", offset);
+      if (offset < 0) {
+        printf("%s\n", "INTRA");
+        offset = abs(offset);
+        u = 0;
+      }
     } else {
       p = 1;
       if (getType(token) != EXPRESSION_EQUAL && getType(token) != REGISTER) {
@@ -660,7 +662,16 @@ typeEnum isExpression(char *token) {
 
   if (strlen(token) >= 4 && token[1] == '0' &&token[2] == 'x') {
     // we might have a hex value
-    for (int i = 3; token[i] != '\0'; i++) {
+    int i = 3;
+
+    if (token[i] == '-') {
+      if (token[i + 1] == '\0') {
+        return UNDEFINED;
+      }
+      i++;
+    }
+
+    for (; token[i] != '\0'; i++) {
       if ((token[i] < '0' || token[i] > '9') &&
           (token[i] < 'a' || token[i] > 'f') &&
           (token[i] < 'A' || token[i] > 'F')) {
@@ -669,6 +680,15 @@ typeEnum isExpression(char *token) {
     }
   } else {
     // we might have a decimal value
+    int i = 1;
+
+    if (token[i] == '-') {
+      if (token[i + 1] == '\0') {
+        return UNDEFINED;
+      }
+      i++;
+    }
+
     for (int i = 1; token[i] != '\0'; i++) {
       if (token[i] < '0' || token[i] > '9') {
         return UNDEFINED;
@@ -707,26 +727,32 @@ typeEnum getType(char *token) {
   return UNDEFINED;
 }
 
-uint32_t getExpression(char *exp, vector *errorVector, char *ln) {
+int32_t getExpression(char *exp, vector *errorVector, char *ln) {
   uint32_t res = 0;
   uint32_t rotations = 0;
 
-  if (exp[1] == '0' && exp[2] == 'x') {
-    res = getHex(exp + 3);
+  int i = 1;
+
+  if (exp[i] == '-') {
+    i++;
+  }
+
+  if (exp[i] == '0' && exp[i + 1] == 'x') {
+    res = getHex(exp + 1);
   } else {
     res = getDec(exp + 1);
   }
 
   if (exp[0] == '#') {
     // check if exp can be roatated to a 8 bit imediate value
-    while (res >= 0x100 && rotations <= 30) {
+    while (abs(res) >= 0x100 && rotations <= 30) {
       char bits31_30 = (res & 0xC0000000) >> (INSTRUCTION_SIZE - 2);
       res <<= 2;
       res |= bits31_30;
       rotations += 2;
     }
 
-    if (rotations > 30 || rotations % 2 != 0) {
+    if (rotations > 30) {
       // throw an error
       // number can't be represented
       throwExpressionError(exp, errorVector, ln);
@@ -739,8 +765,14 @@ uint32_t getExpression(char *exp, vector *errorVector, char *ln) {
   return res;
 }
 
-uint32_t getHex(char *exp) {
-  int res = 0;
+int32_t getHex(char *exp) {
+  int32_t res = 0;
+  bool negative = false;
+  if (exp[0] == '-') {
+    negative = true;
+    exp++;
+  }
+  exp += 2;
   for (int i = 0; exp[i] != '\0'; i++) {
     int x;
     if (exp[i] >= 'A' && exp[i] <= 'F') {
@@ -754,10 +786,10 @@ uint32_t getHex(char *exp) {
     res |= x;
   }
 
-  return res;
+  return negative ? -res : res;
 }
 
-uint32_t getDec(char *exp) {
+int32_t getDec(char *exp) {
   return atoi(exp);
 }
 
