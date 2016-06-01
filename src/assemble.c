@@ -35,6 +35,8 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
                 vector *errorVector, char *ln);
 uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
                 map labelMapping, vector *errorVector, char *ln);
+uint32_t decodeShift(vector *tokens, vector *errorVector, char *ln);
+void getShift(vector *tokens, uint32_t *operand, vector *errorVector, char *ln);
 void throwUndefinedError(char *name, vector *errorVector, char *ln);
 void throwLabelError(char *name, vector *errorVector, char *ln);
 void throwExpressionError(char *expression, vector *errorVector, char *ln);
@@ -44,8 +46,10 @@ typeEnum isExpression(char *token);
 bool isInstruction(char *token);
 bool isLabel(char *token);
 bool isRegister(char *token);
+bool isShift(char *token);
 typeEnum getType(char *token);
-void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u);
+void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u,
+                    vector *errorVector, char *ln);
 int32_t getExpression(char *exp, vector *errorVector, char *ln);
 int32_t getHex(char *exp);
 int32_t getDec(char *exp);
@@ -264,8 +268,9 @@ uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
                         instructionNumber, instructionsNumber, errorVector, ln);
     case 3: return decodeBranch(tokens, instructionNumber,
                                       labelMapping, errorVector, ln);
-    case 4:
-    case 5: free(getFront(tokens));
+    case 4: return decodeShift(tokens, errorVector, ln);
+    case 5: // andeq r0,r0,r0 we just free 4 times
+            free(getFront(tokens));
             free(getFront(tokens));
             free(getFront(tokens));
             free(getFront(tokens));
@@ -312,6 +317,7 @@ uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln) {
       getType(token) != EXPRESSION_EQUAL &&
             getType(token) != REGISTER) {
     // throw expression error
+    throwExpressionError(token, errorVector, ln);
     free(instruction);
     return -1;
   }
@@ -331,6 +337,11 @@ uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln) {
     // with syntax <opcode> Rn, <Operand2>
     // set S bit to 1
     ins |= 0x1 << 0x14;
+  }
+
+  token = peekFront(*tokens);
+  if (isShift(token)) {
+    getShift(tokens, &operand2, errorVector, ln);
   }
 
   // set bit I
@@ -425,7 +436,8 @@ bool checkReg(vector *tokens, char *instr,
   return true;
 }
 
-void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u) {
+void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u,
+                    vector *errorVector, char *ln) {
   char *token;
   int tokenSize = 0;
   vector bracketExpr = constructVector();
@@ -478,8 +490,14 @@ void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u) {
       *i = 1;
     }
   }
-
   free(token);
+
+  token = peekFront(bracketExpr);
+  if (isShift(token)) {
+    uint32_t aux = *offset;
+    getShift(&bracketExpr, &aux, errorVector, ln);
+    *offset = aux;
+  }
 }
 
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
@@ -512,7 +530,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   token = peekFront(*tokens);
   if (token && token[0] == '[') {
     // we have indexed address
-    getBracketExpr(tokens, &rn, &offset, &i, &u);
+    getBracketExpr(tokens, &rn, &offset, &i, &u, errorVector, ln);
 
     token = peekFront(*tokens);
 
@@ -539,6 +557,13 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
         free(token);
         p = 0;
         i = 1;
+
+        token = peekFront(*tokens);
+        if (isShift(token)) {
+          uint32_t aux = offset;
+          getShift(tokens, &aux, errorVector, ln);
+          offset = aux;
+        }
       }
     }
 
@@ -626,6 +651,56 @@ uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
   free(branch);
   free(expression);
   return ins;
+}
+
+uint32_t decodeShift(vector *tokens, vector *errorVector, char *ln) {
+  char *shift = getFront(tokens);
+  char *rn = NULL;
+
+  if (checkReg(tokens, shift, errorVector, ln)) {
+    rn = getFront(tokens);
+  }
+
+  if (!rn) {
+    free(shift);
+    return -1;
+  }
+
+  // fill front of tokens with mov Rn, Rn, lsl <#expression>
+  putFront(tokens, shift);
+  putFront(tokens, rn);
+  putFront(tokens, rn);
+  putFront(tokens, "mov");
+
+  free(shift);
+  free(rn);
+
+  return decodeDataProcessing(tokens, errorVector, ln);
+}
+
+void getShift(vector *tokens, uint32_t *operand,
+                vector *errorVector, char *ln) {
+  char *shift = getFront(tokens);
+  char *token = peekFront(*tokens);
+
+  if (getType(token) != EXPRESSION_TAG && getType(token) != REGISTER) {
+    // throw error
+  }
+
+  if (getType(token) == EXPRESSION_TAG) {
+    // we have expression
+    *operand |= getExpression(token, errorVector, ln) << 0x7;
+  } else {
+    // we have register
+    *operand |= getDec(token + 1) << 0x8;
+    // set bit 4
+    *operand |= 0x1 << 0x4;
+  }
+
+  *operand |= *get(SHIFTS, shift) << 0x5;
+
+  free(getFront(tokens));
+  free(shift);
 }
 
 void setCond(uint32_t *x, char *cond) {
@@ -742,6 +817,14 @@ typeEnum isExpression(char *token) {
 
 bool isInstruction(char *token) {
   return get(ALL_INSTRUCTIONS, token);
+}
+
+bool isShift(char *token) {
+  if (!token) {
+    return false;
+  }
+
+  return get(SHIFTS, token);
 }
 
 typeEnum getType(char *token) {

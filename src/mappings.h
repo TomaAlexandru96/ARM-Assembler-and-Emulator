@@ -22,6 +22,7 @@ map fillAllInstructions(void);
 **/
 map fillConditions(void);
 map fillDataToType(void);
+map fillShifts(void);
 /**
 * Fills all mappings
 **/
@@ -36,6 +37,7 @@ map DATA_OPCODE;
 map ALL_INSTRUCTIONS;
 map CONDITIONS;
 map DATA_TYPE;
+map SHIFTS;
 int countDynamicExpansions = 1;
 
 // -------------------FUNCTION DEFINITIONS-----------------------
@@ -88,8 +90,11 @@ map fillAllInstructions(void) {
   put(&m, "ble", 3);
   put(&m, "b", 3);
 
-  // 4 Special
+  // 4 Shifts
   put(&m, "lsl", 4);
+  put(&m, "lsr", 4);
+  put(&m, "asr", 4);
+  put(&m, "ror", 4);
 
   // 5 Special
   put(&m, "andeq", 5);
@@ -134,11 +139,23 @@ map fillDataToType(void) {
   return m;
 }
 
+map fillShifts(void) {
+  map m = constructMap();
+
+  put(&m, "lsl", 0);
+  put(&m, "lsr", 1);
+  put(&m, "asr", 2);
+  put(&m, "ror", 3);
+
+  return m;
+}
+
 void fillAll(void) {
   DATA_OPCODE      = fillDataToOpcode();
   ALL_INSTRUCTIONS = fillAllInstructions();
   CONDITIONS       = fillConditions();
   DATA_TYPE        = fillDataToType();
+  SHIFTS           = fillShifts();
 }
 
 void freeAll(void) {
@@ -146,4 +163,5 @@ void freeAll(void) {
   clearMap(&ALL_INSTRUCTIONS);
   clearMap(&CONDITIONS);
   clearMap(&DATA_TYPE);
+  clearMap(&SHIFTS);
 }
