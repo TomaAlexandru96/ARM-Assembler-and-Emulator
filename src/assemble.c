@@ -19,7 +19,7 @@ void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, char *delimiters);
 void printBinary(uint32_t nr);
 void setCond(uint32_t *x, char *cond);
-void clearLinesFromFile(char **linesFromFile, uint32_t numberOfLines);
+void clearLinesFromFile(char **linesFromFile);
 /**
 * Converts unsigned int to string
 **/
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
   uint32_t lineNumber = 1;
   char **linesFromFile;
   linesFromFile = firstPass(input, &labelMapping, &errorVector,
-            &instructionsNumber, &ldrCount, &lineNumber);
+                  &instructionsNumber, &ldrCount, &lineNumber);
   // Have checked not NULL condition in firstPass function
   /**
   * Make second pass now and replace all labels with their mapping
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
   fwrite(instructions, sizeof(uint32_t), instructionsNumber, output);
   fclose(output);
   clearVector(&errorVector);
-  clearLinesFromFile(linesFromFile, lineNumber);
+  clearLinesFromFile(linesFromFile);
   exit(EXIT_SUCCESS);
 }
 
@@ -144,6 +144,7 @@ char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
      char **reallocatedArray =
      realloc(linesFromFile,
              countDynamicExpansions * NUMBER_OF_LINES * sizeof(char *));
+             printf("%s\n", "I reallocated");
      if(reallocatedArray) {
         linesFromFile = reallocatedArray;
      } else {
@@ -206,7 +207,7 @@ char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
     // map all labels to current memorry location
     put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
   }
-
+  printf("Exiting with %d\n", *lineNumber);
   return linesFromFile;
 }
 
@@ -655,7 +656,7 @@ vector tokenise(char *start, char *delimiters) {
     putBack(&tokens, token);
     free(token);
   }
-  
+
   return tokens;
 }
 
@@ -860,8 +861,8 @@ void printBinary(uint32_t nr) {
 }
 
 
-void clearLinesFromFile(char **linesFromFile, uint32_t numberOfLines) {
-  for(int i = 0; i < numberOfLines - 1; i++) {
+void clearLinesFromFile(char **linesFromFile) {
+  for(int i = 0; i < (countDynamicExpansions * NUMBER_OF_LINES); i++) {
     free(linesFromFile[i]);
   }
   free(linesFromFile);
