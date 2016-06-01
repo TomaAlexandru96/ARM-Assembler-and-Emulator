@@ -28,7 +28,7 @@ uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
   uint32_t instructionsNumber, map labelMapping, vector *errorVector, char *ln);
 uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln);
 uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln);
-bool checkRegMult(vector *tokens, char *multType,
+bool checkReg(vector *tokens, char *instr,
                 vector *errorVector, char *ln);
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
                 uint32_t instructionNumber, uint32_t instructionsNumber,
@@ -291,28 +291,20 @@ uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln) {
   char *token;
   if (dataType != 2) {
     // we have either 0, 1 type instruction
-    token = peekFront(*tokens);
-    if (getType(token) != REGISTER) {
-      // throw register error
-      free(instruction);
-      return -1;
+    if (checkReg(tokens, instruction, errorVector, ln)) {
+      token = getFront(tokens);
+      rd = getDec(token + 1) << 0xC;
+      free(token);
     }
-
-    rd = getDec(token + 1) << 0xC;
-    free(getFront(tokens));
   }
 
   if (dataType != 1) {
     // we have either 0, 2 type instruction
-    token = peekFront(*tokens);
-    if (getType(token) != REGISTER) {
-      // throw register error
-      free(instruction);
-      return -1;
+    if (checkReg(tokens, instruction, errorVector, ln)) {
+      token = getFront(tokens);
+      rn = getDec(token + 1) << 0x10;
+      free(token);
     }
-
-    rn = getDec(token + 1) << 0x10;
-    free(getFront(tokens));
   }
 
   token = peekFront(*tokens);
@@ -340,7 +332,7 @@ uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln) {
     // set S bit to 1
     ins |= 0x1 << 0x14;
   }
-  free(instruction);
+
   // set bit I
   ins |= i << 0x19;
   // set rn
@@ -349,6 +341,8 @@ uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln) {
   ins |= rd;
   // set operand2
   ins |= operand2;
+
+  free(instruction);
 
   return ins;
 }
@@ -367,19 +361,19 @@ uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln) {
   uint32_t rn = 0;
 
   // "mul"/"mla" set common registers (rd, rm, rs)
-  if(checkRegMult(tokens, multType, errorVector, ln)) {
+  if(checkReg(tokens, multType, errorVector, ln)) {
     char *token = (char *) getFront(tokens);
     rd = getDec(token + 1) << 0x10;
     free(token);
   }
 
-  if(checkRegMult(tokens, multType, errorVector, ln)) {
+  if(checkReg(tokens, multType, errorVector, ln)) {
     char *token = (char *) getFront(tokens);
     rm = getDec(token + 1);
     free(token);
   }
 
-  if(checkRegMult(tokens, multType, errorVector, ln)) {
+  if(checkReg(tokens, multType, errorVector, ln)) {
     char *token = (char *) getFront(tokens);
     rs = getDec(token + 1) << 0x8;
     free(token);
@@ -390,7 +384,7 @@ uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln) {
     //set bit 21 (Accumulator)
     acc = 0x1 << 0x15;
 
-    if(checkRegMult(tokens, multType, errorVector, ln)) {
+    if(checkReg(tokens, multType, errorVector, ln)) {
       char *token = (char *) getFront(tokens);
       rn = getDec(token + 1) << 0xC;
       free(token);
@@ -408,23 +402,26 @@ uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln) {
   // set rn
   instr |= rn;
 
+  free(multType);
+
   return instr;
 }
 
 // helper function to check if incoming token is a valid register
-bool checkRegMult(vector *tokens, char *multType,
+bool checkReg(vector *tokens, char *instr,
                 vector *errorVector, char *ln) {
   char *reg = (char *) peekFront(*tokens);
-  if(!reg) {
-    throwExpressionMissingError(multType, errorVector, ln);
-    free(multType);
+  if(!reg || getType(reg) == INSTRUCTION) {
+    throwExpressionMissingError(instr, errorVector, ln);
     return false;
   }
 
   if (getType(reg) != REGISTER) {
     throwRegisterError(reg, errorVector, ln);
+    free(getFront(tokens));
     return false;
   }
+
   return true;
 }
 
@@ -502,15 +499,14 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
 
   setCond(&ins, ALWAYS_CONDITION);
 
-  token = peekFront(*tokens);
-  if (getType(token) != REGISTER) {
-    // throw register error
+  if (checkReg(tokens, instruction, errorVector, ln)) {
+    token = getFront(tokens);
+    rd = getDec(token + 1);
+    rdName = token;
+  } else {
     free(instruction);
     return -1;
   }
-
-  rd = getDec(token + 1);
-  rdName = getFront(tokens);
 
   // check for register or expression
   token = peekFront(*tokens);
@@ -553,7 +549,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   } else {
     p = 1;
     if (getType(token) != EXPRESSION_EQUAL) {
-      // throw expression error
+      throwExpressionError(instruction, errorVector, ln);
       free(rdName);
       free(instruction);
       return -1;
