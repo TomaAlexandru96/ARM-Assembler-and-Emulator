@@ -53,6 +53,7 @@ void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u,
 int32_t getExpression(char *exp, vector *errorVector, char *ln);
 int32_t getHex(char *exp);
 int32_t getDec(char *exp);
+void getComment(vector *tokens);
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -164,7 +165,8 @@ char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
     while (!isEmptyVector(tokens)) {
-      char *token = getFront(&tokens);
+      char *token = peekFront(tokens);
+
       if (getType(token) == LABEL) {
         token[strlen(token) - 1] = '\0';
         if (get(*labelMapping, token) || contains(currentLabels, token)) {
@@ -200,7 +202,10 @@ char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
         currentMemoryLocation++;
         (*instructionsNumber)++;
       }
-      free(token);
+
+      getComment(&tokens);
+
+      free(getFront(&tokens));
     }
     free(lineNo);
     (*lineNumber)++;
@@ -237,9 +242,12 @@ void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
         // we have a label so we just remove it
         free(getFront(&tokens));
       } else {
-        throwUndefinedError(token, errorVector, lineNo);
-        // throw error because instruction is undefined
-        free(getFront(&tokens));
+	getComment(&tokens);
+	if (!isEmptyVector(tokens)) {
+          throwUndefinedError(token, errorVector, lineNo);
+          // throw error because instruction is undefined
+          free(getFront(&tokens));
+        }
       }
     }
     ln++;
@@ -255,6 +263,13 @@ void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
   }
 
   *instructionsNumber = PC;
+}
+
+void getComment(vector *tokens) {
+  char *token = peekFront(*tokens);
+  if (token[0] == '@') {
+    clearVector(tokens);
+  }
 }
 
 uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
