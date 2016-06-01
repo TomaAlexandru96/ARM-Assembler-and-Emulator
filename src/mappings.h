@@ -36,6 +36,7 @@ map DATA_OPCODE;
 map ALL_INSTRUCTIONS;
 map CONDITIONS;
 map DATA_TYPE;
+int countDynamicExpansions = 1;
 
 // -------------------FUNCTION DEFINITIONS-----------------------
 map fillDataToOpcode(void) {

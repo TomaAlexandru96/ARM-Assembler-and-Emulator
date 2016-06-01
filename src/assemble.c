@@ -8,15 +8,18 @@
 #define INSTRUCTION_SIZE 32
 #define ALWAYS_CONDITION ""
 #define BRANCH_OFFSET_SIZE  26
+#define NUMBER_OF_LINES 1000
 
-uint32_t firstPass(FILE *input, map *labelMapping, vector *errorVector,
-              uint32_t *instructionsNumber, uint32_t *ldrCount);
+char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
+        uint32_t *instructionsNumber, uint32_t *ldrCount, uint32_t *lineNumber);
 void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
-              vector *errorVector, FILE *input, map labelMapping);
+              vector *errorVector, FILE *input, map labelMapping,
+              char** linesFromFile, uint32_t lineNumber);
 void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
 vector tokenise(char *start, char *delimiters);
 void printBinary(uint32_t nr);
 void setCond(uint32_t *x, char *cond);
+void clearLinesFromFile(char **linesFromFile, uint32_t numberOfLines);
 /**
 * Converts unsigned int to string
 **/
@@ -72,16 +75,19 @@ int main(int argc, char **argv) {
   **/
   fillAll();
   uint32_t ldrCount = 0;
-  firstPass(input, &labelMapping, &errorVector, &instructionsNumber, &ldrCount);
+  uint32_t lineNumber = 1;
+  char **linesFromFile;
+  linesFromFile = firstPass(input, &labelMapping, &errorVector,
+            &instructionsNumber, &ldrCount, &lineNumber);
+  // Have checked not NULL condition in firstPass function
   /**
   * Make second pass now and replace all labels with their mapping
   * also decode all instructions and throw errors if any
   **/
-
   uint32_t instructions[instructionsNumber + ldrCount];
   rewind(input); // reset file pointer to the beginning of the file
   secondPass(&instructionsNumber, instructions,
-                &errorVector, input, labelMapping);
+             &errorVector, input, labelMapping, linesFromFile, lineNumber);
 
   // clear
   freeAll();
@@ -104,23 +110,51 @@ int main(int argc, char **argv) {
   fwrite(instructions, sizeof(uint32_t), instructionsNumber, output);
   fclose(output);
   clearVector(&errorVector);
-
+  clearLinesFromFile(linesFromFile, lineNumber);
   exit(EXIT_SUCCESS);
 }
 
-uint32_t firstPass(FILE *input, map *labelMapping, vector *errorVector,
-                    uint32_t *instructionsNumber, uint32_t *ldrCount) {
-  uint32_t lineNumber = 1;
+char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
+      uint32_t *instructionsNumber, uint32_t *ldrCount, uint32_t *lineNumber) {
   uint32_t currentMemoryLocation = 0;
   *ldrCount = 0;
   vector currentLabels = constructVector();
   char buffer[MAX_LINE_LENGTH];
-
+  /*Allocate memory for the array of lines*/
+  char **linesFromFile = (char **) malloc(NUMBER_OF_LINES * sizeof(char *));
+  for(int i = 0; i < NUMBER_OF_LINES; i++) {
+    linesFromFile[i] = (char *) malloc((MAX_LINE_LENGTH + 1) * sizeof(char));
+    if(!linesFromFile) {
+      perror("malloc");
+      exit(EXIT_FAILURE);
+    }
+  }
+  if(!linesFromFile) {
+    perror("malloc");
+    exit(EXIT_FAILURE);
+  }
+  /*End memory allocation for array of lines*/
   *instructionsNumber = 0;
 
   while(fgets(buffer, MAX_LINE_LENGTH, input)) {
+    /*Perform dynamic expansion of lines array*/
+    if((*lineNumber - 1) >= NUMBER_OF_LINES) {
+     countDynamicExpansions++;
+     //increment global variable countDynamicExpansions
+     char **reallocatedArray =
+     realloc(linesFromFile,
+             countDynamicExpansions * NUMBER_OF_LINES * sizeof(char *));
+     if(reallocatedArray) {
+        linesFromFile = reallocatedArray;
+     } else {
+       perror("realloc");
+       exit(EXIT_FAILURE);
+     }
+    }
+    /*End dynamic expansion*/
+    strcpy(linesFromFile[*lineNumber - 1], buffer);
     vector tokens = tokenise(buffer, DELIMITERS);
-    char *lineNo = uintToString(lineNumber);
+    char *lineNo = uintToString(*lineNumber);
     // check for all tokens see if there are labels
     // if there are labels add all of them to a vector list and
     // map all labels with the memorry address of the next instruction
@@ -164,7 +198,7 @@ uint32_t firstPass(FILE *input, map *labelMapping, vector *errorVector,
       free(token);
     }
     free(lineNo);
-    lineNumber++;
+    (*lineNumber)++;
   }
 
   // map all remaining unmached labels to current memory location
@@ -173,18 +207,19 @@ uint32_t firstPass(FILE *input, map *labelMapping, vector *errorVector,
     put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
   }
 
-  return lineNumber - 1;
+  return linesFromFile;
 }
 
 void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
-              vector *errorVector, FILE *input, map labelMapping) {
-  char buffer[MAX_LINE_LENGTH];
+              vector *errorVector, FILE *input, map labelMapping,
+              char **linesFromFile, uint32_t lineNumber) {
+  //char buffer[MAX_LINE_LENGTH];
   uint32_t PC = 0;
   uint32_t ln = 1;
   vector addresses = constructVector();
-
-  while(fgets(buffer, MAX_LINE_LENGTH, input)) {
-    vector tokens = tokenise(buffer, DELIMITERS);
+  //fgets(buffer, MAX_LINE_LENGTH, input) --> was in the loop
+  while(ln != lineNumber) {
+    vector tokens = tokenise(linesFromFile[ln - 1], DELIMITERS);
     char *lineNo = uintToString(ln);
     while (!isEmptyVector(tokens)) {
       char *token = peekFront(tokens);
@@ -621,7 +656,7 @@ vector tokenise(char *start, char *delimiters) {
     putBack(&tokens, token);
     free(token);
   }
-
+  
   return tokens;
 }
 
@@ -823,6 +858,14 @@ void printBinary(uint32_t nr) {
   }
 
   putchar('\n');
+}
+
+
+void clearLinesFromFile(char **linesFromFile, uint32_t numberOfLines) {
+  for(int i = 0; i < numberOfLines - 1; i++) {
+    free(linesFromFile[i]);
+  }
+  free(linesFromFile);
 }
 
 // ----------------------ERRORS--------------------------------
