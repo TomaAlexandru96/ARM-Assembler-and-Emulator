@@ -45,7 +45,7 @@ bool isInstruction(char *token);
 bool isLabel(char *token);
 bool isRegister(char *token);
 typeEnum getType(char *token);
-int getAddress(vector *tokens, int *rn, int32_t *offset);
+void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u);
 int32_t getExpression(char *exp, vector *errorVector, char *ln);
 int32_t getHex(char *exp);
 int32_t getDec(char *exp);
@@ -207,7 +207,6 @@ char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
     // map all labels to current memorry location
     put(labelMapping, getFront(&currentLabels), currentMemoryLocation);
   }
-  printf("Exiting with %d\n", *lineNumber);
   return linesFromFile;
 }
 
@@ -400,16 +399,12 @@ uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln) {
 
   // set acc
   instr |= acc;
-
   // set rd
   instr |= rd;
-
   // set rm
   instr |= rm;
-
   // set rs
   instr |= rs;
-
   // set rn
   instr |= rn;
 
@@ -433,11 +428,12 @@ bool checkRegMult(vector *tokens, char *multType,
   return true;
 }
 
-int getAddress(vector *tokens, int *rn, int32_t *offset) {
+void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u) {
   char *token;
   int tokenSize = 0;
   vector bracketExpr = constructVector();
 
+  // remove the square brackets from the existing tokens
   do {
     token = getFront(tokens);
     tokenSize = strlen(token);
@@ -467,24 +463,26 @@ int getAddress(vector *tokens, int *rn, int32_t *offset) {
   free(token);
 
   token = getFront(&bracketExpr);
+
   if (token) {
-    *offset = getExpression(token, NULL, 0);
-    // we have pre-indexed
-    free(token);
-    return 1;
+    if (!strcmp(token, "-")) {
+      u = 0;
+      free(token);
+      token = getFront(&bracketExpr);
+    } else if (token[0] == '-') {
+      token++;
+      u = 0;
+    }
+
+    if (getType(token) == EXPRESSION_TAG) {
+      *offset = getExpression(token, NULL, 0);
+    } else if (getType(token) == REGISTER) {
+      *offset = getDec(token + 1);
+      *i = 1;
+    }
   }
+
   free(token);
-
-  if (getType(peekFront(*tokens)) == EXPRESSION_TAG) {
-    // we have post indexed
-    token = getFront(tokens);
-    *offset = getExpression(token, NULL, 0);
-    free(token);
-    return 0;
-  }
-
-  // we have pre indexed
-  return 1;
 }
 
 uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
@@ -494,7 +492,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   char *rdName;
   uint32_t ins = 1 << 0x1A;
   int i = 0;
-  int p = 0;
+  int p = 1;
   int u = 1;
   int l = !strcmp(instruction, "ldr") ? 1 : 0;
   int32_t offset = 0;
@@ -518,7 +516,36 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   token = peekFront(*tokens);
   if (token && token[0] == '[') {
     // we have indexed address
-    p = getAddress(tokens, &rn, &offset);
+    getBracketExpr(tokens, &rn, &offset, &i, &u);
+
+    token = peekFront(*tokens);
+
+    if (token) {
+      if (!strcmp(token, "-")) {
+        u = 0;
+        free(token);
+        token = getFront(tokens);
+      } else if (token[0] == '-') {
+        token++;
+        u = 0;
+      }
+
+      if (getType(token) == EXPRESSION_TAG) {
+        // we have post indexed expression
+        token = getFront(tokens);
+        offset = getExpression(token, NULL, 0);
+        free(token);
+        p = 0;
+      } else if (getType(token) == REGISTER) {
+        // we have post indexed register
+        token = getFront(tokens);
+        offset = getDec(token + 1);
+        free(token);
+        p = 0;
+        i = 1;
+      }
+    }
+
     if (offset < 0) {
       offset = abs(offset);
       u = 0;
@@ -557,22 +584,16 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
 
   // set bit i 25
   ins |= i << 0x19;
-
   // set bit p 24
   ins |= p << 0x18;
-
   // set bit u 23
   ins |= u << 0x17;
-
   // set bit p 20
   ins |= l << 0x14;
-
   // set rn
   ins |= rn << 0x10;
-
   // set rd
   ins |= rd << 0xC;
-
   // set offset
   ins |= offset;
 
@@ -690,16 +711,14 @@ typeEnum isExpression(char *token) {
     return UNDEFINED;
   }
 
-  if (strlen(token) >= 4 && token[1] == '0' &&token[2] == 'x') {
-    // we might have a hex value
-    int i = 3;
+  int i = 1;
+  if (token[i] == '-') {
+    i++;
+  }
 
-    if (token[i] == '-') {
-      if (token[i + 1] == '\0') {
-        return UNDEFINED;
-      }
-      i++;
-    }
+  if (strlen(token) >= i + 3 && token[i] == '0' &&token[i + 1] == 'x') {
+    // we might have a hex value
+    i += 2;
 
     for (; token[i] != '\0'; i++) {
       if ((token[i] < '0' || token[i] > '9') &&
@@ -710,13 +729,9 @@ typeEnum isExpression(char *token) {
     }
   } else {
     // we might have a decimal value
-    int i = 1;
 
-    if (token[i] == '-') {
-      if (token[i + 1] == '\0') {
-        return UNDEFINED;
-      }
-      i++;
+    if (token[i] == '\0') {
+      return UNDEFINED;
     }
 
     for (int i = 1; token[i] != '\0'; i++) {
