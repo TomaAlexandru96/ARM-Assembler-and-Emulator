@@ -460,7 +460,7 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
   int i = 0;
   int p = 0;
   int u = 1;
-  int l = 0;
+  int l = !strcmp(instruction, "ldr") ? 1 : 0;
   int32_t offset = 0;
   int rn = 0xf; // default rn
   int rd = 0;
@@ -495,29 +495,28 @@ uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
       free(instruction);
       return -1;
     }
-  }
 
-  if (!strcmp(instruction, "ldr")) {
-    // we have a load instruction
-    l = 1;
-    if (getType(token) == EXPRESSION_EQUAL) {
-      uint32_t address = getExpression(token, errorVector, ln);
+    if (!strcmp(instruction, "ldr")) {
+      // we have a load instruction
+      if (getType(token) == EXPRESSION_EQUAL) {
+        uint32_t address = getExpression(token, errorVector, ln);
 
-      if (address <= 0xFF) {
-        // interpret as move instruction
-        putFront(tokens, rdName);
-        putFront(tokens, "mov");
-        free(rdName);
-        free(instruction);
-        return decodeDataProcessing(tokens, errorVector, ln);
-      } else {
-        // interpret as normal
-        putBack(addresses, token);
-        int addressLocation = instructionsNumber + addresses->size - 1;
-        offset = (addressLocation - instructionNumber - 2) * MEMORY_SIZE;
+        if (address <= 0xFF) {
+          // interpret as move instruction
+          putFront(tokens, rdName);
+          putFront(tokens, "mov");
+          free(rdName);
+          free(instruction);
+          return decodeDataProcessing(tokens, errorVector, ln);
+        } else {
+          // interpret as normal
+          putBack(addresses, token);
+          int addressLocation = instructionsNumber + addresses->size - 1;
+          offset = (addressLocation - instructionNumber - 2) * MEMORY_SIZE;
+        }
       }
+      free(getFront(tokens));
     }
-    free(getFront(tokens));
   }
 
   // set bit i 25
