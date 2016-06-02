@@ -1,59 +1,4 @@
-#define NDEBUG
-#include "mappings.h"
-
-#define MAX_LINE_LENGTH 512
-#define DELIMITERS " ,\n"
-#define MEMORY_SIZE 4
-#define PC_OFFSET 2
-#define INSTRUCTION_SIZE 32
-#define ALWAYS_CONDITION ""
-#define BRANCH_OFFSET_SIZE  26
-#define NUMBER_OF_LINES 1000
-
-char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
-        uint32_t *instructionsNumber, uint32_t *ldrCount, uint32_t *lineNumber);
-void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
-              vector *errorVector, FILE *input, map labelMapping,
-              char** linesFromFile, uint32_t lineNumber);
-void printStringArray(int n, char arr[][MAX_LINE_LENGTH]);
-vector tokenise(char *start, char *delimiters);
-void printBinary(uint32_t nr);
-void setCond(uint32_t *x, char *cond);
-void clearLinesFromFile(char **linesFromFile);
-/**
-* Converts unsigned int to string
-**/
-char *uintToString(uint32_t num);
-uint32_t decode(vector *tokens, vector *addresses, uint32_t instructionNumber,
-  uint32_t instructionsNumber, map labelMapping, vector *errorVector, char *ln);
-uint32_t decodeDataProcessing(vector *tokens, vector *errorVector, char *ln);
-uint32_t decodeMultiply(vector *tokens, vector *errorVector, char *ln);
-bool checkReg(vector *tokens, char *instr,
-                vector *errorVector, char *ln);
-uint32_t decodeSingleDataTransfer(vector *tokens, vector *addresses,
-                uint32_t instructionNumber, uint32_t instructionsNumber,
-                vector *errorVector, char *ln);
-uint32_t decodeBranch(vector *tokens, uint32_t instructionNumber,
-                map labelMapping, vector *errorVector, char *ln);
-uint32_t decodeShift(vector *tokens, vector *errorVector, char *ln);
-void getShift(vector *tokens, uint32_t *operand, vector *errorVector, char *ln);
-void throwUndefinedError(char *name, vector *errorVector, char *ln);
-void throwLabelError(char *name, vector *errorVector, char *ln);
-void throwExpressionError(char *expression, vector *errorVector, char *ln);
-void throwRegisterError(char *name, vector *errorVector, char *ln);
-void throwExpressionMissingError(char *ins, vector *errorVector, char *ln);
-typeEnum isExpression(char *token);
-bool isInstruction(char *token);
-bool isLabel(char *token);
-bool isRegister(char *token);
-bool isShift(char *token);
-typeEnum getType(char *token);
-void getBracketExpr(vector *tokens, int *rn, int32_t *offset, int *i, int *u,
-                    vector *errorVector, char *ln);
-int32_t getExpression(char *exp, vector *errorVector, char *ln);
-int32_t getHex(char *exp);
-int32_t getDec(char *exp);
-void getComment(vector *tokens);
+#include "assemble.h"
 
 int main(int argc, char **argv) {
   // Check for number of arguments
@@ -92,7 +37,7 @@ int main(int argc, char **argv) {
   uint32_t instructions[instructionsNumber + ldrCount];
   rewind(input); // reset file pointer to the beginning of the file
   secondPass(&instructionsNumber, instructions,
-             &errorVector, input, labelMapping, linesFromFile, lineNumber);
+             &errorVector, labelMapping, linesFromFile, lineNumber);
 
   // clear
   freeAll();
@@ -220,13 +165,12 @@ char **firstPass(FILE *input, map *labelMapping, vector *errorVector,
 }
 
 void secondPass(uint32_t *instructionsNumber, uint32_t instructions[],
-              vector *errorVector, FILE *input, map labelMapping,
+              vector *errorVector, map labelMapping,
               char **linesFromFile, uint32_t lineNumber) {
   //char buffer[MAX_LINE_LENGTH];
   uint32_t PC = 0;
   uint32_t ln = 1;
   vector addresses = constructVector();
-  //fgets(buffer, MAX_LINE_LENGTH, input) --> was in the loop
   while(ln != lineNumber) {
     vector tokens = tokenise(linesFromFile[ln - 1], DELIMITERS);
     char *lineNo = uintToString(ln);
@@ -726,12 +670,6 @@ void setCond(uint32_t *x, char *cond) {
   *x |= condition;
 }
 
-void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
-  for (int i = 0; i < n; i++) {
-    printf("%s", arr[i]);
-  }
-}
-
 vector tokenise(char *start, char *delimiters) {
   int tokenSize = 0;
   int i;
@@ -953,23 +891,6 @@ char *uintToString(uint32_t num) {
   return ret;
 }
 
-void printBinary(uint32_t nr) {
-  uint32_t mask = 1 << (INSTRUCTION_SIZE - 1);
-
-  printf("%d: ", nr);
-
-  for (int i = 0; i < INSTRUCTION_SIZE; i++) {
-    if (!(i % 8) && i) {
-      putchar(' ');
-    }
-    putchar((nr & mask) ? '1' : '0');
-    mask >>= 1;
-  }
-
-  putchar('\n');
-}
-
-
 void clearLinesFromFile(char **linesFromFile) {
   for(int i = 0; i < (countDynamicExpansions * NUMBER_OF_LINES); i++) {
     free(linesFromFile[i]);
@@ -1031,4 +952,27 @@ void throwExpressionMissingError(char *ins, vector *errorVector, char *ln) {
   strcat(error, " instruction.");
   putBack(errorVector, error);
   free(error);
+}
+
+// -----------------------DEBUGGING---------------------------
+void printBinary(uint32_t nr) {
+  uint32_t mask = 1 << (INSTRUCTION_SIZE - 1);
+
+  printf("%d: ", nr);
+
+  for (int i = 0; i < INSTRUCTION_SIZE; i++) {
+    if (!(i % 8) && i) {
+      putchar(' ');
+    }
+    putchar((nr & mask) ? '1' : '0');
+    mask >>= 1;
+  }
+
+  putchar('\n');
+}
+
+void printStringArray(int n, char arr[][MAX_LINE_LENGTH]) {
+  for (int i = 0; i < n; i++) {
+    printf("%s", arr[i]);
+  }
 }
