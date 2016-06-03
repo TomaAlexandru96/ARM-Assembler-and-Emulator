@@ -6,11 +6,12 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <assert.h>
+#include <stdint.h>
 
 struct fb_fix_screeninfo finfo;
 struct fb_var_screeninfo vinfo;
 int fbdev = 0;
-char *fbp;
+uint8_t *fbp, *bbp;
 long int screensize = 0;
 
 void setFB(void);
@@ -44,8 +45,9 @@ void setFB(void) {
 
     screensize = vinfo.xres * vinfo.yres * (vinfo.bits_per_pixel / 8);
 
-    fbp = (char *) mmap(0, screensize, PROT_READ | PROT_WRITE, 
+    fbp = mmap(0, screensize, PROT_READ | PROT_WRITE, 
             MAP_SHARED, fbdev, 0);
+    // bbp = fbp + screensize;
 }
 
 void closeFB(void) {
@@ -72,15 +74,28 @@ void setPixel(position pos, rgba color) {
 
 int main(void) {
     setFB();
-
-    for (int i = 0; i < vinfo.yres; i++) {
-        for (int j = 0; j < vinfo.xres; j++) {
+    for (int i = 0; i < vinfo.yres / 2; i++) {
+        for (int j = 0; j < vinfo.xres/ 2; j++) {
             position p = {j, i};
             rgba c = {0, 0, 0, 0};
             setPixel(p, c);
         }
     }
 
+    for (int i = 0; i < vinfo.yres / 2; i++) {
+        for (int j = 0; j < vinfo.xres /2; j++) {
+            position p = {j, i};
+            rgba c = {255, 255, 255, 0};
+            setPixel(p, c);
+        }
+    }
+    for (int i = 0; i < vinfo.yres / 2; i++) {
+        for (int j = 0; j < vinfo.xres/ 2; j++) {
+            position p = {j, i};
+            rgba c = {0, 0, 0, 0};
+            setPixel(p, c);
+        }
+    }
     closeFB();
     return 0;
 }
