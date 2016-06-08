@@ -13,8 +13,8 @@
 #define NANOSECONDS_IN_A_SECOND 1000000000.0f
 #define MILISECONDS_IN_A_SECOND 1000000.0f
 #define FPS 16
-#define WINDOW_WIDTH 500
-#define WINDOW_HEIGHT 600
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGHT 800
 #define WHITE_RGB_CODE 255
 /*Game dynamics constants*/
 #define NUM_DOTS 1024
