@@ -11,7 +11,11 @@ mov r6, #16
 
 loop:
 
-mov r7, #4128768
+str r4, [r1]
+str r5, [r1]
+str r6, [r1]
+
+ldr r7, =10000000
 wait1:
 sub r7, r7, #1
 cmp r7, #0
@@ -23,7 +27,7 @@ str r6, [r1]
 
 str r6, [r2]
 
-mov r7, #4128768
+ldr r7, =10000000
 wait2:
 sub r7, r7, #1
 cmp r7, #0
@@ -35,7 +39,7 @@ str r6, [r1]
 
 str r5, [r2]
 
-mov r7, #4128768
+ldr r7, =10000000
 wait3:
 sub r7, r7, #1
 cmp r7, #0
@@ -48,7 +52,7 @@ str r6, [r1]
 str r5, [r2]
 str r6, [r2]
 
-mov r7, #4128768
+ldr r7, =10000000
 wait4:
 sub r7, r7, #1
 cmp r7, #0
@@ -60,7 +64,7 @@ str r6, [r1]
 
 str r4, [r2]
 
-mov r7, #4128768
+ldr r7, =10000000
 wait5:
 sub r7, r7, #1
 cmp r7, #0
@@ -73,7 +77,7 @@ str r6, [r1]
 str r4, [r2]
 str r6, [r2]
 
-mov r7, #4128768
+ldr r7, =10000000
 wait6:
 sub r7, r7, #1
 cmp r7, #0
@@ -86,7 +90,7 @@ str r6, [r1]
 str r4, [r2]
 str r5, [r2]
 
-mov r7, #4128768
+ldr r7, =10000000
 wait7:
 sub r7, r7, #1
 cmp r7, #0
@@ -100,6 +104,11 @@ str r4, [r2]
 str r5, [r2]
 str r6, [r2]
 
+ldr r7, =10000000
+wait8:
+sub r7, r7, #1
+cmp r7, #0
+bne wait8
 
 b loop
 andeq r0, r0, r0
